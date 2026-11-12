@@ -267,7 +267,7 @@ function hwReveal(P) {
 
 // ================= Highway Arm D (lane changes; see scripts/export_highway_armd_demo_data.py) =================
 const HXD = window.HWD_DATA;
-const HX = { HZ: HXD.policy_hz, LANE_W: 4, AHEAD: 70 }; // AHEAD: road shown beyond the ego stretch, in metres
+const HX = { HZ: HXD.policy_hz, LANE_W: 4, CAR_L: 5 }; // camera spans the ego's stretch and every other vehicle in the clip
 function hxPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('highwayd' + st.agents);
   const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('highwayd') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
@@ -281,7 +281,9 @@ function hxPrepare(st) {
   // Same camera idea as Arm A: fixed per clip, one scale for every clip on the page.
   const PAD = 4, cam0 = {}; let span = 0;
   for (const [key, q] of Object.entries(seqs)) cam0[key] = q.map(s => {
-    span = Math.max(span, Math.max(...s.x) - Math.min(...s.x) + HX.AHEAD + PAD);
+    // Widest clip sets one scale for the page, so the target-lane car (often 150-190 m ahead) stays on screen.
+    const far = Math.max(...s.x, ...s.others.map(o => Math.max(...o.x)));
+    span = Math.max(span, far - Math.min(...s.x) + HX.CAR_L + 2 * PAD);
     return Math.min(...s.x) - PAD;
   });
   return { policyOf, missing: methods.some(m => !seqs[m + 'A'] || !seqs[m + 'B']),
@@ -327,7 +329,7 @@ function hxReveal(P) {
       <li>Arm D models, seed ${HXD.source.seed}, 36 development exposures; files and hashes are recorded in highway_armd_data.js (exported ${HXD.source.exported}). Every clip is replayed from the stored actions and checked against the log step by step.</li>
       <li>DISAGREEMENTS: both leader directions, as in the source paper. Clips 1–${HXD.budget} have ${P.policyOf.A} leading, clips ${HXD.budget + 1}–${HXD.onset_budget} have ${P.policyOf.B} leading. For each direction, candidates are all steps, across all 36 of the leader's episodes, where the two greedy actions differ. Each candidate forks and runs the follower greedily for up to 10 steps; the leader's own episode is the other branch. Score (last-state): the absolute sum, over both policies, of max Q at the leader's end state minus max Q at the follower's end state, each min-max normalized within the episode; 0 if the two end frames are identical. Candidates are taken from highest score down until there are ${HXD.budget} per direction (the source paper uses 5), skipping any that overlap more than 5 steps with a clip already chosen from the same episode. Window [t−9, t+10], extended to ${HXD.clip_len} steps for display.</li>
       <li>ONSET: lane-change onset. The ${HXD.onset_budget} scenes with the largest onset difference, as many clips as DISAGREEMENTS shows across both directions; the two sides do not correspond clip by clip. Scenes whose two onsets cannot share one window are skipped.</li>
-      <li>Display: the camera covers the agent's stretch plus ${HX.AHEAD} m, so vehicles further ahead are off-screen until they come into range. Each clip is exactly ${HXD.clip_len} steps.</li></ul>`;
+      <li>Display: each clip has a fixed camera wide enough to show the agent's whole stretch and every other vehicle, including the car in the target lane; one scale for all clips on the page. Each clip is exactly ${HXD.clip_len} steps.</li></ul>`;
 }
 
 // ================= Recharge (illustrative) =================

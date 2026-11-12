@@ -96,6 +96,7 @@ body.stim .wrap { max-width: 760px; gap: 12px; }
 .clip canvas.hw { aspect-ratio: 4 / 1; }
 .clip canvas.hw-trace { aspect-ratio: 5 / 2; }
 .clip canvas.rc { aspect-ratio: 2 / 1; }
+.clip canvas.rc-grid { aspect-ratio: 3 / 2; }
 .player { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
 .bar { flex: 1 1 180px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
@@ -385,7 +386,8 @@ function rcDraw(cv, cell, pf, color, g, P) {
   const c = fitCanvas(cv); if (!c) return; const { ctx, w, h } = c;
   const traj = cell.traj, sc = P.sc, f = cell.start + Math.min(pf, cell.len - 1);
   ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
-  const pad = h * 0.05, gs = h - pad * 2, cs = gs / RC.N, ox = pad, oy = pad;
+  const panel = P.st.panel !== false; // participant page: grid only, no battery/task counters
+  const pad = h * 0.05, gs = h - pad * 2, cs = gs / RC.N, ox = panel ? pad : (w - gs) / 2, oy = pad;
   ctx.fillStyle = g('--surface'); ctx.fillRect(ox, oy, gs, gs);
   ctx.fillStyle = g('--notask'); ctx.fillRect(ox + 5 * cs, oy + 5 * cs, 5 * cs, 5 * cs);
   ctx.fillStyle = g('--zone'); ctx.fillRect(ox + 6 * cs, oy + 6 * cs, 4 * cs, 4 * cs);
@@ -412,7 +414,9 @@ function rcDraw(cv, cell, pf, color, g, P) {
   const p0 = traj.pos[i0], p1 = traj.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
   if (traj.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(rx, ry, cs * 0.3, 0, Math.PI * 2); ctx.fill();
-  const px = ox + gs + pad * 2.2, pw = w - px - pad, fs = Math.max(10, h * 0.065);
+  const fs = Math.max(10, h * 0.065);
+  if (!panel) { watermark(ctx, w, h, fs * 0.85); return; }
+  const px = ox + gs + pad * 2.2, pw = w - px - pad;
   ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = `${fs}px ${monoFont()}`;
   const bat = traj.bat[cur], frac = Math.max(0, bat / sc.battery);
   ctx.fillStyle = g('--muted'); ctx.fillText('BATTERY', px, oy);
@@ -471,7 +475,7 @@ const ENVS = {
     },
   },
   recharge: {
-    name: 'Recharge', fps: RC.FPS, pairs: [M.HL, M.DIS], canvasClass: () => 'rc',
+    name: 'Recharge', fps: RC.FPS, pairs: [M.HL, M.DIS], canvasClass: st => st.panel === false ? 'rc-grid' : 'rc',
     notice: '<b>Illustrative.</b> Robots follow hand-written routes on the source grid layout, not trained policies. HIGHLIGHTS and DISAGREEMENTS clip selection uses simplified stand-ins.',
     intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Both sides show the same scene.',
     q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently in this scene?',
@@ -576,7 +580,7 @@ function renderStimulus(Q) {
     try { parent.postMessage({ type: 'onset-stim', event, height, ...extra }, '*'); } catch (e) {} };
   const fail = msg => { $stage.innerHTML = `<div class="panel"><p>${msg}</p></div>`; post('error'); };
   if (!E) return fail('This video could not be loaded. Please tell the researcher.');
-  const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: false }; // no speed trace: Arm D has none, and participants judge from the road view
+  const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: false, panel: false }; // no speed trace: Arm D has none, and participants judge from the road view
   if (key === 'recharge') { const i = RC_SCENES.findIndex(s => s.id === Q.get('scene')); if (i < 0) return fail('This video could not be loaded. Please tell the researcher.'); st.scene = i; }
   else { if (!HW_PAIRS.includes(Q.get('pair'))) return fail('This video could not be loaded. Please tell the researcher.'); st.agents = Q.get('pair'); }
   if (!['1', '2'].includes(Q.get('m'))) return fail('This video could not be loaded. Please tell the researcher.');

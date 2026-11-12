@@ -401,7 +401,9 @@ function rcDraw(cv, cell, pf, color, g, P) {
   ctx.moveTo(bx + 0.2 * u, bby - u); ctx.lineTo(bx - 0.6 * u, bby + 0.15 * u); ctx.lineTo(bx - 0.05 * u, bby + 0.15 * u);
   ctx.lineTo(bx - 0.2 * u, bby + u); ctx.lineTo(bx + 0.6 * u, bby - 0.15 * u); ctx.lineTo(bx + 0.05 * u, bby - 0.15 * u); ctx.closePath(); ctx.fill();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const done = traj.done[cur];
+  // Participant page: tasks finished before the clip starts are drawn as not done, so the grid shows only what happens in the clip
+  // (otherwise a clip near the end of a run reveals the run's total by counting outlines).
+  const before = panel ? [] : traj.done[Math.min(cell.start, traj.n - 1)], done = traj.done[cur].filter(t => !before.includes(t));
   for (const [name, [x, y]] of Object.entries(RC.TASKS)) {
     const cx = ox + (x + 0.5) * cs, cy = oy + (y + 0.5) * cs, r = cs * 0.32, isDone = done.includes(name);
     ctx.beginPath(); ctx.rect(cx - r, cy - r, r * 2, r * 2);
@@ -589,7 +591,7 @@ function renderStimulus(Q) {
   if (P.missing) return fail('This video could not be loaded. Please tell the researcher.');
   P.onEvent = ev => post(ev);
   $stage.innerHTML = `
-    <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend.replace(' (dashed line: its speed)', '')}</div>
+    <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend.replace(' (dashed line: its speed)', '').replace('Task not done</span>', 'Task</span><span><i class="chip" style="background:transparent;border:1.2px solid var(--muted)"></i>Task done in this video</span>')}</div>
     <div class="sides one">${clipCol('Videos', method, P)}</div>
     <div class="hint">${(P.hint || `${P.D} policy steps at ${E.fps} Hz`).replace(/;.*$/, '')}. You can replay as often as you like.</div>`;
   players = [...$stage.querySelectorAll('.side')].map(el => makePlayer(P, el));

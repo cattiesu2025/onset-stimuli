@@ -1,0 +1,601 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Videos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one tab per environment; each tab is a single comparison item (two summaries side by side, two agents per summary). */
+:root {
+  --bg: #eef1f3; --surface: #ffffff; --surface-2: #f6f8f9; --ink: #17212b; --muted: #5a6773; --line: #d4dbe1;
+  --accent: #0e6a6a; --accent-ink: #ffffff; --accent-soft: #dcefee;
+  --agent-a: #c2410c; --agent-b: #1d4ed8; --lead: #8f99a3;
+  --road: #2a323a; --road-mark: #e9edf0; --shoulder: #c9d1c4; --brake: #ff3b30;
+  --task: #7a4fc4; --zone: #d3ead6; --notask: #e6ece3; --dock: #2f8a4a;
+  --warn-bg: #fff4dc; --warn-ink: #7a4b00; --warn-line: #ecd29a;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-head: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1418; --surface: #172027; --surface-2: #1c262e; --ink: #e5ebef; --muted: #93a1ad; --line: #2b3742;
+  --accent: #56bdb8; --accent-ink: #0b1a1a; --accent-soft: #173534;
+  --agent-a: #f0883e; --agent-b: #6ea8fe; --lead: #75808a;
+  --road: #232b32; --road-mark: #8a97a3; --shoulder: #2f3a33; --brake: #ff5a50;
+  --task: #b493f0; --zone: #1e3a28; --notask: #1f2925; --dock: #4cc073;
+  --warn-bg: #2e2513; --warn-ink: #f3cf86; --warn-line: #5a4720; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1418; --surface: #172027; --surface-2: #1c262e; --ink: #e5ebef; --muted: #93a1ad; --line: #2b3742;
+  --accent: #56bdb8; --accent-ink: #0b1a1a; --accent-soft: #173534;
+  --agent-a: #f0883e; --agent-b: #6ea8fe; --lead: #75808a;
+  --road: #232b32; --road-mark: #8a97a3; --shoulder: #2f3a33; --brake: #ff5a50;
+  --task: #b493f0; --zone: #1e3a28; --notask: #1f2925; --dock: #4cc073;
+  --warn-bg: #2e2513; --warn-ink: #f3cf86; --warn-line: #5a4720; color-scheme: dark }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+h1, h2, h3 { font-family: var(--font-head); text-wrap: balance; margin: 0; line-height: 1.25; }
+h2 { font-size: 1.3rem; font-weight: 700; }
+p { margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-family: var(--font-mono); }
+
+/* Header + tabs */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding-top: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top-inner { max-width: 1120px; margin: 0 auto; display: grid; gap: 8px; }
+.brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.brand b { font-family: var(--font-head); font-size: 1.15rem; }
+.tabs { display: flex; gap: 4px; }
+.tab { border: 0; background: none; padding: 8px 16px 10px; cursor: pointer; color: var(--muted); font-weight: 600; border-bottom: 3px solid transparent; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--ink); }
+
+/* Main */
+main { padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 18px; }
+.notice { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line); border-radius: var(--r); padding: 8px 12px; font-size: 0.85rem; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 12px; min-width: 0; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 14px; border-radius: var(--r); cursor: pointer; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.intro { display: grid; gap: 6px; max-width: 75ch; }
+.toolbar { display: flex; gap: 12px 20px; flex-wrap: wrap; align-items: center; }
+.ctl { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.ctl > span { color: var(--muted); }
+select { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 6px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; }
+
+.legend { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.chip { width: 20px; height: 10px; border-radius: 3px; display: inline-block; }
+.chip.round { width: 12px; height: 12px; border-radius: 50%; }
+
+/* Stimulus grid */
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.sides.one { grid-template-columns: 1fr; }
+body.stim main { padding-block: 8px 16px; }
+body.stim .wrap { max-width: 760px; gap: 12px; }
+.side { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 10px; min-width: 0; align-content: start; }
+.side-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-family: var(--font-head); font-weight: 700; font-size: 1.1rem; }
+.clip { display: grid; gap: 4px; min-width: 0; }
+.clip-label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 500; }
+.clip canvas { width: 100%; max-width: 100%; display: block; border-radius: 4px; background: var(--surface-2); }
+.clip canvas.hw { aspect-ratio: 4 / 1; }
+.clip canvas.hw-trace { aspect-ratio: 5 / 2; }
+.clip canvas.rc { aspect-ratio: 2 / 1; }
+.player { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
+.bar { flex: 1 1 180px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
+.hint { font-size: 0.85rem; color: var(--muted); }
+
+/* Questions */
+.q-title { font-weight: 600; }
+.opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.opt { position: relative; }
+.opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.opt span { display: block; text-align: center; padding: 9px 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
+.opt input:checked + span { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.qlist { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; color: var(--muted); font-size: 0.92rem; }
+.qlist b { color: var(--ink); font-weight: 600; margin-right: 6px; }
+.rate-item { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 18px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line); }
+.rate-side { display: flex; align-items: center; gap: 3px; }
+.rate-side > b { font-size: 0.82rem; font-weight: 600; margin-right: 5px; }
+.rate-side .opt span { width: 26px; padding: 3px 0; font-size: 0.82rem; }
+
+/* Reveal */
+.tag { display: inline-block; font-family: var(--font-mono); font-size: 0.72rem; padding: 1px 6px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line); font-weight: 500; }
+.tag.warn { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-line); }
+.reveal { border-style: dashed; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; }
+.notes { margin: 0; padding-left: 1.1em; font-size: 0.82rem; color: var(--muted); display: grid; gap: 3px; }
+
+@media (max-width: 760px) {
+  .sides { grid-template-columns: 1fr; }
+  .opts { grid-template-columns: 1fr 1fr; }
+  .rate-item { grid-template-columns: 1fr; }
+}
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><b>ONSET Summary Comparison</b><span class="eyebrow">Demo · draft v0.1</span></div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-highway" data-env="highway" aria-controls="stage">Highway (Arm A)</button>
+      <button class="tab" role="tab" id="tab-highwayd" data-env="highwayd" aria-controls="stage">Highway (Arm D)</button>
+      <button class="tab" role="tab" id="tab-recharge" data-env="recharge" aria-controls="stage">Recharge</button>
+    </div>
+  </div>
+</header>
+
+<main><div class="wrap" id="stage" role="tabpanel"></div></main>
+
+<script src="highway_data.js"></script>
+<script src="highway_armd_data.js"></script>
+<script>
+const M = { ON: 'ONSET', HL: 'HIGHLIGHTS', DIS: 'DISAGREEMENTS' };
+const short = m => ({ ONSET: 'ON', HIGHLIGHTS: 'HL', DISAGREEMENTS: 'DIS' }[m]);
+const hashStr = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+const tok = () => { const cs = getComputedStyle(document.documentElement); return n => cs.getPropertyValue(n).trim(); };
+const monoFont = () => getComputedStyle(document.documentElement).getPropertyValue('--font-mono');
+const lerp = (arr, f) => { const i = Math.floor(f), j = Math.min(i + 1, arr.length - 1); return arr[i] + (arr[j] - arr[i]) * (f - i); };
+function fitCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (!w) return null;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+const watermark = (ctx, w, h, size) => { ctx.font = `${size}px ${monoFont()}`; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = 'rgba(127,127,127,0.6)'; ctx.fillText('illustrative', w - 6, h - 3); ctx.textAlign = 'left'; };
+const endShade = (ctx, w, h, g) => { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#fff'; ctx.font = `${Math.max(11, h * 0.08)}px ${monoFont()}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('clip ended', w / 2, h / 2); ctx.textAlign = 'left'; };
+
+// ================= Highway (real episodes, native selection; see scripts/export_highway_demo_data.py) =================
+const HWD = window.HW_DATA;
+const HW = { HZ: HWD.policy_hz, CAR_L: 5 };
+const HW_PAIRS = ['FD-SP', 'FD-BAL', 'BAL-SP'];
+// A summary is BUDGET clips of CLIP steps played back to back, with a short dark gap between clips.
+const HW_SEQ = { N: HWD.budget, CLIP: HWD.clip_len, GAP: 3 }; HW_SEQ.SEG = HW_SEQ.CLIP + HW_SEQ.GAP;
+const withBrake = s => { if (!s.brake) s.brake = s.v.map((v, i) => i + 1 < s.v.length && s.v[i + 1] < v - 0.05); return s; };
+function hwPrepare(st) {
+  const conds = st.agents.split('-'), h = hashStr('highway' + st.agents);
+  const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('highway') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
+  const policyOf = { A: conds[aFirst ? 0 : 1], B: conds[aFirst ? 1 : 0] };
+  // ONSET shows both agents on the same scenes; HIGHLIGHTS shows each agent's own top clips.
+  const on = HWD.clips.ONSET[st.agents];
+  const seqOf = (m, cond) => m === M.ON ? on.map(p => p.segs[cond]) : HWD.clips.HIGHLIGHTS[cond];
+  const methods = [M.ON, st.pair], seqs = {};
+  for (const m of methods) for (const l of ['A', 'B']) { const q = seqOf(m, policyOf[l]); if (q && q.length) seqs[m + l] = q.map(withBrake); }
+  // Fixed camera per clip: each view starts just behind the agent's first position and covers the whole stretch
+  // both cars drive through; every clip on the page shares one scale so distances and speeds compare directly.
+  const PAD = 4, cam0 = {};
+  let span = 0, vmin = Infinity, vmax = -Infinity;
+  for (const [key, q] of Object.entries(seqs)) cam0[key] = q.map(s => {
+    const lo = Math.min(...s.x), hi = Math.max(...s.x.map((x, i) => x + s.gap[i] + 2 * HW.CAR_L));
+    span = Math.max(span, hi - lo + 2 * PAD);
+    s.v.forEach((v, i) => { vmin = Math.min(vmin, v, s.vl[i]); vmax = Math.max(vmax, v, s.vl[i]); });
+    return lo - PAD;
+  });
+  return { policyOf, missing: methods.some(m => !seqs[m + 'A'] || !seqs[m + 'B']),
+    left: onsetLeft ? M.ON : st.pair, right: onsetLeft ? st.pair : M.ON, rows: aTop ? ['A', 'B'] : ['B', 'A'],
+    cell: (m, l) => ({ seq: seqs[m + l], cam0: cam0[m + l] }), D: (HW_SEQ.N - 1) * HW_SEQ.SEG + HW_SEQ.CLIP,
+    hint: `${HW_SEQ.N} clips × ${HW_SEQ.CLIP} policy steps at ${HW.HZ} Hz, played back to back; each side has its own Play button`,
+    view: { span, vmin, vmax } };
+}
+function drawCar(ctx, x, y, len, h, color, brake, brakeColor) {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(x, y - h / 2, len, h, 3); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x + len * 0.58, y - h / 2 + 2, len * 0.16, h - 4);
+  if (brake) { ctx.fillStyle = brakeColor; ctx.fillRect(x - 1, y - h / 2 + 1, 3, h * 0.28); ctx.fillRect(x - 1, y + h / 2 - 1 - h * 0.28, 3, h * 0.28); }
+}
+function hwDraw(cv, cell, pf, color, g, P) {
+  const c = fitCanvas(cv); if (!c) return; const { ctx, w, h } = c;
+  const j = Math.min(Math.floor(pf / HW_SEQ.SEG), HW_SEQ.N - 1), loc = pf - j * HW_SEQ.SEG;
+  const traj = cell.seq[j], cam0 = cell.cam0[j], len = traj.v.length, V = P.view, trace = P.st.trace, rH = trace ? h * 0.6 : h;
+  const f = Math.min(loc, len - 1), step = Math.floor(f), x = lerp(traj.x, f), gap = lerp(traj.gap, f);
+  const fs = Math.max(10, rH * 0.13);
+  ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
+  if (loc > HW_SEQ.CLIP - 1 + 1e-6) { // gap between clips
+    ctx.fillStyle = g('--road'); ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#fff'; ctx.font = `${fs * 1.2}px ${monoFont()}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`clip ${j + 2} / ${HW_SEQ.N}`, w / 2, h / 2); ctx.textAlign = 'left';
+    return;
+  }
+  // Fixed camera (see hwPrepare): both cars move across a static stretch of road.
+  const s = w / V.span, cl = Math.max(HW.CAR_L * s, 12), sx = xw => (xw - cam0) * s;
+  ctx.fillStyle = g('--shoulder'); ctx.fillRect(0, 0, w, rH);
+  const top = rH * 0.1, rh = rH * 0.8, lh = rh / 3;
+  ctx.fillStyle = g('--road'); ctx.fillRect(0, top, w, rh);
+  ctx.fillStyle = g('--road-mark'); ctx.fillRect(0, top, w, 1.5); ctx.fillRect(0, top + rh - 1.5, w, 1.5);
+  for (let lane = 1; lane < 3; lane++) for (let m = Math.floor(cam0 / 12) * 12; m < cam0 + V.span; m += 12) ctx.fillRect(sx(m), top + lh * lane - 0.75, 6 * s, 1.5);
+  const ch = lh * 0.5, yc = top + lh * 1.5;
+  drawCar(ctx, sx(x + gap + HW.CAR_L), yc, cl, ch, g('--lead'), false);
+  drawCar(ctx, sx(x), yc, cl, ch, color, traj.brake[step], g('--brake'));
+  const txt = `clip ${j + 1}/${HW_SEQ.N} · t ${((traj.start + f) / HW.HZ).toFixed(1)} s`;
+  if (trace) {
+    const py0 = rH + 8, py1 = h - 6, px0 = 44, px1 = w - 8, lo = V.vmin - 1, hi = V.vmax + 1;
+    const X = i => px0 + (i / (HW_SEQ.CLIP - 1)) * (px1 - px0), Y = v => py1 - (v - lo) / (hi - lo) * (py1 - py0);
+    ctx.strokeStyle = g('--line'); ctx.lineWidth = 1; ctx.strokeRect(px0, py0, px1 - px0, py1 - py0);
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = g('--lead'); ctx.beginPath();
+    for (let i = 0; i < len; i++) { const v = traj.vl[i]; i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)); }
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(X(0), Y(traj.v[0]));
+    for (let i = 1; i <= step; i++) ctx.lineTo(X(i), Y(traj.v[i]));
+    const vNow = lerp(traj.v, f); ctx.lineTo(X(f), Y(vNow)); ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(X(f), Y(vNow), 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.font = `${fs * 0.8}px ${monoFont()}`; ctx.fillStyle = g('--muted'); ctx.textAlign = 'right';
+    ctx.textBaseline = 'top'; ctx.fillText((hi * 3.6).toFixed(0), px0 - 5, py0);
+    ctx.textBaseline = 'bottom'; ctx.fillText((lo * 3.6).toFixed(0), px0 - 5, py1);
+    ctx.textBaseline = 'middle'; ctx.fillText('km/h', px0 - 5, (py0 + py1) / 2); ctx.textAlign = 'left';
+  }
+  ctx.font = `${fs}px ${monoFont()}`; ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(6, 4, ctx.measureText(txt).width + 10, fs + 6);
+  ctx.fillStyle = '#fff'; ctx.fillText(txt, 11, 7);
+  if (loc > len - 1 + 1e-6) endShade(ctx, w, rH, g);
+}
+function hwReveal(P) {
+  const rows = [P.left, P.right].flatMap((m, si) => ['A', 'B'].flatMap(l => P.cell(m, l).seq.map((s, k) => {
+    const cond = P.policyOf[l];
+    const onsetIn = s.onset != null && s.onset >= s.start && s.onset < s.end;
+    return `<tr><td>${si ? 'Right' : 'Left'}</td><td class="mono">${short(m)}</td><td>Agent ${l} · ${cond}</td><td class="mono">${k + 1}</td><td class="mono">${s.exposure}</td>
+      <td class="mono">[${s.start}, ${s.end})</td><td class="mono">${s.anchor}</td>
+      <td>${s.onset == null ? '–' : `<span class="mono">${s.onset}</span> ${onsetIn ? '<span class="tag">in clip</span>' : '<span class="tag warn">outside</span>'}`}</td></tr>`; })));
+  return `<div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Clip</th><th>Scene</th><th>Steps</th><th>Selected step</th><th>ONSET step</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <ul class="notes">
+      <li>Original single-lane models, seed ${HWD.source.seed}, 36 development exposures; files and hashes are recorded in highway_data.js (exported ${HWD.source.exported}).</li>
+      <li>HIGHLIGHTS: stored max-second top-${HWD.budget} for each agent over all 36 scenes, in order of importance; each agent's summary uses its own scenes. Window [t−10, t+10).</li>
+      <li>ONSET: ${HWD.source.onset_rule}; ties go to the lower scene id. Both agents share one window [mid−10, mid+10), mid = midpoint of their two onsets, so both clips start at the same step and the onset gap is visible.</li>
+      <li>Display adaptation, same for every method: each clip is exactly ${HWD.clip_len} steps; a window that would start before step 0 is shifted right instead of cut.</li></ul>`;
+}
+
+// ================= Highway Arm D (lane changes; see scripts/export_highway_armd_demo_data.py) =================
+const HXD = window.HWD_DATA;
+const HX = { HZ: HXD.policy_hz, LANE_W: 4, AHEAD: 70 }; // AHEAD: road shown beyond the ego stretch, in metres
+function hxPrepare(st) {
+  const conds = st.agents.split('-'), h = hashStr('highwayd' + st.agents);
+  const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('highwayd') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
+  const policyOf = { A: conds[aFirst ? 0 : 1], B: conds[aFirst ? 1 : 0] };
+  // DISAGREEMENTS shows both leader directions, Agent A's first; ONSET has no leader and shows as many clips.
+  const on = HXD.clips.ONSET[st.agents], other = c => conds.find(x => x !== c);
+  const dis = ['A', 'B'].flatMap(l => (HXD.clips.DISAGREEMENTS[`${policyOf[l]}>${other(policyOf[l])}`] || []).map(d => ({ ...d, by: policyOf[l] })));
+  const seqOf = (m, cond) => m === M.ON ? on.map(p => p.segs[cond]) : dis.map(d => cond === d.by ? d.leader : d.follower);
+  const methods = [M.ON, st.pair], seqs = {};
+  for (const m of methods) for (const l of ['A', 'B']) { const q = seqOf(m, policyOf[l]); if (q && q.length) seqs[m + l] = q.map(withBrake); }
+  // Same camera idea as Arm A: fixed per clip, one scale for every clip on the page.
+  const PAD = 4, cam0 = {}; let span = 0;
+  for (const [key, q] of Object.entries(seqs)) cam0[key] = q.map(s => {
+    span = Math.max(span, Math.max(...s.x) - Math.min(...s.x) + HX.AHEAD + PAD);
+    return Math.min(...s.x) - PAD;
+  });
+  return { policyOf, missing: methods.some(m => !seqs[m + 'A'] || !seqs[m + 'B']),
+    left: onsetLeft ? M.ON : st.pair, right: onsetLeft ? st.pair : M.ON, rows: aTop ? ['A', 'B'] : ['B', 'A'],
+    cell: (m, l) => ({ seq: seqs[m + l], cam0: cam0[m + l] }), D: (HXD.onset_budget - 1) * (HXD.clip_len + HW_SEQ.GAP) + HXD.clip_len,
+    hint: `${HXD.onset_budget} clips × ${HXD.clip_len} policy steps at ${HX.HZ} Hz, played back to back; each side has its own Play button`,
+    view: { span } };
+}
+function hxDraw(cv, cell, pf, color, g, P) {
+  const c = fitCanvas(cv); if (!c) return; const { ctx, w, h } = c;
+  const seg = HXD.clip_len + HW_SEQ.GAP, n = cell.seq.length, j = Math.min(Math.floor(pf / seg), n - 1), loc = pf - j * seg;
+  const traj = cell.seq[j], cam0 = cell.cam0[j], len = traj.v.length, fs = Math.max(10, h * 0.13);
+  if (loc > HXD.clip_len - 1 + 1e-6) { // gap between clips
+    ctx.fillStyle = g('--road'); ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#fff'; ctx.font = `${fs * 1.2}px ${monoFont()}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`clip ${j + 2} / ${n}`, w / 2, h / 2); ctx.textAlign = 'left';
+    return;
+  }
+  const s = w / P.view.span, cl = Math.max(HW.CAR_L * s, 20), sx = xw => (xw - cam0) * s;
+  ctx.fillStyle = g('--shoulder'); ctx.fillRect(0, 0, w, h);
+  const top = h * 0.1, rh = h * 0.8, lh = rh / HXD.lanes, sy = yw => top + (yw / HX.LANE_W + 0.5) * lh; // lane i is centred at y = i * LANE_W
+  ctx.fillStyle = g('--road'); ctx.fillRect(0, top, w, rh);
+  ctx.fillStyle = g('--road-mark'); ctx.fillRect(0, top, w, 1.5); ctx.fillRect(0, top + rh - 1.5, w, 1.5);
+  for (let lane = 1; lane < HXD.lanes; lane++) for (let m = Math.floor(cam0 / 12) * 12; m < cam0 + P.view.span; m += 12) ctx.fillRect(sx(m), top + lh * lane - 0.75, 6 * s, 1.5);
+  const f = Math.min(loc, len - 1), step = Math.floor(f), ch = Math.min(lh * 0.5, cl * 0.55);
+  for (const o of traj.others) drawCar(ctx, sx(lerp(o.x, f)), sy(lerp(o.y, f)), cl, ch, g('--lead'), false);
+  drawCar(ctx, sx(lerp(traj.x, f)), sy(lerp(traj.y, f)), cl, ch, color, traj.brake[step], g('--brake'));
+  const txt = `clip ${j + 1}/${n} · t ${((traj.start + f) / HX.HZ).toFixed(1)} s`;
+  ctx.font = `${fs}px ${monoFont()}`; ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(6, 4, ctx.measureText(txt).width + 10, fs + 6);
+  ctx.fillStyle = '#fff'; ctx.fillText(txt, 11, 7);
+  if (loc > len - 1 + 1e-6) endShade(ctx, w, h, g);
+}
+function hxReveal(P) {
+  const rows = [P.left, P.right].flatMap((m, si) => ['A', 'B'].flatMap(l => P.cell(m, l).seq.map((s, k) => {
+    const cond = P.policyOf[l], branch = s.episode.includes('fork@');
+    const onsetIn = s.onset != null && s.onset >= s.start && s.onset < s.end;
+    return `<tr><td>${si ? 'Right' : 'Left'}</td><td class="mono">${short(m)}</td><td>Agent ${l} · ${cond}</td><td class="mono">${k + 1}</td><td class="mono">${m === M.DIS ? s.episode.split('_')[0] : '–'}</td><td class="mono">${s.exposure}</td>
+      <td class="mono">[${s.start}, ${s.end})</td><td class="mono">${s.anchor}</td>
+      <td>${branch ? '<span class="tag warn">counterfactual branch</span>' : s.onset == null ? '–' : `<span class="mono">${s.onset}</span> ${onsetIn ? '<span class="tag">in clip</span>' : '<span class="tag warn">outside</span>'}`}</td></tr>`; })));
+  return `<div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Clip</th><th>Leader</th><th>Scene</th><th>Steps</th><th>Selected step</th><th>ONSET step</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <ul class="notes">
+      <li>Arm D models, seed ${HXD.source.seed}, 36 development exposures; files and hashes are recorded in highway_armd_data.js (exported ${HXD.source.exported}). Every clip is replayed from the stored actions and checked against the log step by step.</li>
+      <li>DISAGREEMENTS: both leader directions, as in the source paper. Clips 1–${HXD.budget} have ${P.policyOf.A} leading, clips ${HXD.budget + 1}–${HXD.onset_budget} have ${P.policyOf.B} leading. For each direction, candidates are all steps, across all 36 of the leader's episodes, where the two greedy actions differ. Each candidate forks and runs the follower greedily for up to 10 steps; the leader's own episode is the other branch. Score (last-state): the absolute sum, over both policies, of max Q at the leader's end state minus max Q at the follower's end state, each min-max normalized within the episode; 0 if the two end frames are identical. Candidates are taken from highest score down until there are ${HXD.budget} per direction (the source paper uses 5), skipping any that overlap more than 5 steps with a clip already chosen from the same episode. Window [t−9, t+10], extended to ${HXD.clip_len} steps for display.</li>
+      <li>ONSET: lane-change onset. The ${HXD.onset_budget} scenes with the largest onset difference, as many clips as DISAGREEMENTS shows across both directions; the two sides do not correspond clip by clip. Scenes whose two onsets cannot share one window are skipped.</li>
+      <li>Display: the camera covers the agent's stretch plus ${HX.AHEAD} m, so vehicles further ahead are off-screen until they come into range. Each clip is exactly ${HXD.clip_len} steps.</li></ul>`;
+}
+
+// ================= Recharge (illustrative) =================
+// Layout from recharge_transition_timing grid pilot: 10x10, start (0,0), dock (9,9), original six tasks.
+const RC = { FPS: 4, W: 12, N: 10, DOCK: [9, 9], MOVE: 1, WORK: 3.5,
+  TASKS: { A: [1, 2], B: [3, 1], C: [2, 5], D: [5, 3], E: [4, 8], F: [8, 4] } };
+const inZone = p => p[0] >= 6 && p[1] >= 6;
+const RC_SCENES = [
+  { id: 'R01', battery: 40, plans: [['A', 'B'], ['A', 'B', 'D', 'F']] },
+  { id: 'R02', battery: 50, plans: [['A', 'B', 'D'], ['A', 'B', 'D', 'F', 'E']] },
+  { id: 'R03', battery: 34, plans: [['A', 'B'], ['A', 'C', 'E']], near: true },
+];
+function rcSimulate(sc, k) {
+  let pos = [0, 0], bat = sc.battery; const done = [];
+  const o = { pos: [], bat: [], done: [], act: [] };
+  const push = act => { o.pos.push(pos.slice()); o.bat.push(bat); o.done.push(done.slice()); o.act.push(act); };
+  push('START');
+  const go = t => { while (pos[0] !== t[0] || pos[1] !== t[1]) {
+    const dx = t[0] - pos[0], dy = t[1] - pos[1];
+    if (Math.abs(dx) >= Math.abs(dy)) pos[0] += Math.sign(dx); else pos[1] += Math.sign(dy);
+    bat -= RC.MOVE; push('MOVE'); } };
+  for (const name of sc.plans[k]) { go(RC.TASKS[name]); bat -= RC.WORK; done.push(name); push('WORK'); }
+  go(RC.DOCK);
+  return o;
+}
+function rcPad(trajs) { // hold the docked state so both agents share one timeline
+  const n = Math.max(...trajs.map(t => t.pos.length)) + 3;
+  trajs.forEach(t => { while (t.pos.length < n) { t.pos.push(t.pos.at(-1)); t.bat.push(t.bat.at(-1)); t.done.push(t.done.at(-1)); t.act.push('DOCKED'); } t.n = n; });
+  return trajs;
+}
+const rcEntry = tr => { let e = -1; tr.pos.forEach((p, i) => { if (i && inZone(p) && !inZone(tr.pos[i - 1])) e = i; }); return e; };
+function rcNominal(method, trajs, sc, k) {
+  if (method === M.ON) return rcEntry(trajs[k]) - 6;
+  if (method === M.HL) { // proxy importance: WORK actions weighted by battery already spent
+    const tr = trajs[k]; let best = 0, bi = 0;
+    tr.act.forEach((a, i) => { const imp = a === 'WORK' ? 1 + (sc.battery - tr.bat[i]) / sc.battery : 0; if (imp > best) { best = imp; bi = i; } });
+    return bi - Math.floor(RC.W / 2);
+  }
+  let d = 0; while (d < trajs[0].n && trajs[0].pos[d] + '' === trajs[1].pos[d] + '' && trajs[0].act[d] === trajs[1].act[d]) d++;
+  return d - 3;
+}
+function rcPrepare(st) {
+  const sc = RC_SCENES[st.scene], trajs = rcPad([rcSimulate(sc, 0), rcSimulate(sc, 1)]), n = trajs[0].n;
+  const h = hashStr('recharge' + sc.id), aIsEarly = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('recharge') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
+  const policyOf = { A: aIsEarly ? 0 : 1, B: aIsEarly ? 1 : 0 };
+  const win = m => [0, 1].map(k => { const nominal = rcNominal(m, trajs, sc, k), start = Math.min(Math.max(0, nominal), n - RC.W); return { start, end: start + RC.W, nominal }; });
+  const windows = { [M.ON]: win(M.ON), [st.pair]: win(st.pair) };
+  return { sc, trajs, policyOf, windows, earlyLabel: aIsEarly ? 'A' : 'B',
+    left: onsetLeft ? M.ON : st.pair, right: onsetLeft ? st.pair : M.ON, rows: aTop ? ['A', 'B'] : ['B', 'A'],
+    cell: (m, l) => { const k = policyOf[l]; return { traj: trajs[k], start: windows[m][k].start, len: RC.W }; }, D: RC.W };
+}
+function rcDraw(cv, cell, pf, color, g, P) {
+  const c = fitCanvas(cv); if (!c) return; const { ctx, w, h } = c;
+  const traj = cell.traj, sc = P.sc, f = cell.start + Math.min(pf, cell.len - 1);
+  ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
+  const pad = h * 0.05, gs = h - pad * 2, cs = gs / RC.N, ox = pad, oy = pad;
+  ctx.fillStyle = g('--surface'); ctx.fillRect(ox, oy, gs, gs);
+  ctx.fillStyle = g('--notask'); ctx.fillRect(ox + 5 * cs, oy + 5 * cs, 5 * cs, 5 * cs);
+  ctx.fillStyle = g('--zone'); ctx.fillRect(ox + 6 * cs, oy + 6 * cs, 4 * cs, 4 * cs);
+  ctx.strokeStyle = g('--line'); ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i <= RC.N; i++) { ctx.moveTo(ox + i * cs, oy); ctx.lineTo(ox + i * cs, oy + gs); ctx.moveTo(ox, oy + i * cs); ctx.lineTo(ox + gs, oy + i * cs); }
+  ctx.stroke();
+  const i0 = Math.floor(f), i1 = Math.min(i0 + 1, traj.n - 1), fr = f - i0, cur = Math.min(Math.round(f), traj.n - 1);
+  ctx.fillStyle = g('--dock'); ctx.beginPath(); ctx.roundRect(ox + 9 * cs + cs * 0.15, oy + 9 * cs + cs * 0.15, cs * 0.7, cs * 0.7, 3); ctx.fill();
+  const bx = ox + 9.5 * cs, bby = oy + 9.5 * cs, u = cs * 0.22; // lightning bolt
+  ctx.fillStyle = g('--surface'); ctx.beginPath();
+  ctx.moveTo(bx + 0.2 * u, bby - u); ctx.lineTo(bx - 0.6 * u, bby + 0.15 * u); ctx.lineTo(bx - 0.05 * u, bby + 0.15 * u);
+  ctx.lineTo(bx - 0.2 * u, bby + u); ctx.lineTo(bx + 0.6 * u, bby - 0.15 * u); ctx.lineTo(bx + 0.05 * u, bby - 0.15 * u); ctx.closePath(); ctx.fill();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const done = traj.done[cur];
+  for (const [name, [x, y]] of Object.entries(RC.TASKS)) {
+    const cx = ox + (x + 0.5) * cs, cy = oy + (y + 0.5) * cs, r = cs * 0.32, isDone = done.includes(name);
+    ctx.beginPath(); ctx.rect(cx - r, cy - r, r * 2, r * 2);
+    if (isDone) { ctx.strokeStyle = g('--muted'); ctx.lineWidth = 1.2; ctx.stroke(); } else { ctx.fillStyle = g('--task'); ctx.fill(); }
+    ctx.fillStyle = isDone ? g('--muted') : g('--surface'); ctx.font = `600 ${cs * 0.38}px ${monoFont()}`; ctx.fillText(name, cx, cy + 0.5);
+  }
+  ctx.strokeStyle = color; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(2, cs * 0.12); ctx.beginPath();
+  for (let i = Math.max(0, i0 - 8); i <= i0; i++) { const p = traj.pos[i], X = ox + (p[0] + 0.5) * cs, Y = oy + (p[1] + 0.5) * cs; i === Math.max(0, i0 - 8) ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  const p0 = traj.pos[i0], p1 = traj.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
+  if (traj.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(rx, ry, cs * 0.3, 0, Math.PI * 2); ctx.fill();
+  const px = ox + gs + pad * 2.2, pw = w - px - pad, fs = Math.max(10, h * 0.065);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = `${fs}px ${monoFont()}`;
+  const bat = traj.bat[cur], frac = Math.max(0, bat / sc.battery);
+  ctx.fillStyle = g('--muted'); ctx.fillText('BATTERY', px, oy);
+  ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${bat.toFixed(1)} / ${sc.battery}`, px, oy + fs * 1.3);
+  const by = oy + fs * 3.1, bh = fs * 0.8;
+  ctx.fillStyle = g('--line'); ctx.fillRect(px, by, pw, bh);
+  ctx.fillStyle = frac < 0.25 ? g('--brake') : g('--dock'); ctx.fillRect(px, by, pw * frac, bh);
+  ctx.font = `${fs}px ${monoFont()}`;
+  ctx.fillStyle = g('--muted'); ctx.fillText('TASKS DONE', px, by + bh + fs * 1.1);
+  ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${done.length}`, px, by + bh + fs * 2.4);
+  ctx.font = `${fs}px ${monoFont()}`;
+  ctx.fillStyle = g('--muted'); ctx.fillText(`step ${cur}`, px, by + bh + fs * 4.7);
+  if (traj.pos[cur] + '' === RC.DOCK + '') { ctx.fillStyle = g('--dock'); ctx.fillText('docked', px, by + bh + fs * 6); }
+  watermark(ctx, w, h, fs * 0.85);
+}
+function rcReveal(P) {
+  const rows = [P.left, P.right].flatMap((m, si) => ['A', 'B'].map(l => {
+    const k = P.policyOf[l], w = P.windows[m][k];
+    return `<tr><td>${si ? 'Right' : 'Left'}</td><td class="mono">${short(m)}</td><td>Agent ${l}</td><td class="mono">[${w.start}, ${w.end})</td><td>${w.start !== w.nominal ? `<span class="tag warn">shifted ${w.start - w.nominal > 0 ? '+' : ''}${w.start - w.nominal}</span>` : '<span class="tag">as selected</span>'}</td></tr>`; })).join('');
+  return `<div class="tbl-wrap"><table><thead><tr><th>Agent</th><th>Route in this scene</th></tr></thead><tbody>
+      ${['A', 'B'].map(l => `<tr><td>Agent ${l}${P.earlyLabel === l ? ' <span class="tag">earlier ONSET</span>' : ''}</td><td>${P.sc.plans[P.policyOf[l]].join(' → ')} → dock</td></tr>`).join('')}</tbody></table></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Steps</th><th>Boundary</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <ul class="notes"><li>ONSET here is the final entry into the 4×4 area near the dock; the source rule (3 net moves toward the dock within 8 steps) is not reproduced.</li>
+      <li>HIGHLIGHTS uses a "WORK × battery spent" importance proxy within this scene. DISAGREEMENTS starts 3 steps before the two robots first diverge.</li>
+      <li>Windows that run past the episode edge are shifted to full length, using the same rule for every method.</li></ul>`;
+}
+
+// ================= Environment registry =================
+const ENVS = {
+  highway: {
+    name: 'Highway', fps: HW.HZ, pairs: [M.HL], canvasClass: st => st.trace ? 'hw-trace' : 'hw',
+    notice: `<b>Real episodes.</b> Arm A original single-lane models FD, BAL and SP, training seed ${HWD.source.seed}. Each method picks its own five clips per agent from all 36 scenes, using its own selection rule.`,
+    intro: 'Two self-driving cars, each driving on its own, meet a slower vehicle ahead. Each side shows one summary per agent: five short clips from 36 recorded drives, played back to back. Depending on the side, the two agents may appear in the same scenes or in different ones. Every clip lasts the same time; the camera stays fixed and shows the whole stretch of road driven in the clip.',
+    q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
+    legend: `<span><i class="chip" style="background:var(--lead)"></i>Vehicle ahead (dashed line: its speed)</span><span><i class="chip" style="background:var(--brake)"></i>Brake lights on</span>`,
+    prepare: hwPrepare, draw: hwDraw, reveal: hwReveal,
+    controls(st, P) {
+      return `<label class="ctl"><span>Agents</span><select id="agents">${HW_PAIRS.map(a => `<option value="${a}" ${a === st.agents ? 'selected' : ''}>${a.replace('-', ' vs ')}</option>`).join('')}</select></label>
+        <label class="switch"><input type="checkbox" id="trace" ${st.trace ? 'checked' : ''}>Speed trace</label>`;
+    },
+    bind(st) {
+      document.getElementById('agents').onchange = e => { st.agents = e.target.value; render(); };
+      document.getElementById('trace').onchange = e => { st.trace = e.target.checked; render(); };
+    },
+  },
+  highwayd: {
+    name: 'Highway', fps: HX.HZ, pairs: [M.DIS], canvasClass: () => 'hw',
+    notice: `<b>Real episodes.</b> Arm D models FD, BAL and SP, training seed ${HXD.source.seed}. Each method picks its own ${HXD.onset_budget} clips for the agent pair from all 36 scenes, using its own selection rule, so the two sides need not show the same scenes.`,
+    intro: 'Two self-driving cars, each driving on its own, meet a slower vehicle ahead on a two-lane road. Each side shows one summary per agent: four short clips played back to back. Play each side on its own. Every clip lasts the same time; the camera stays fixed.',
+    q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
+    legend: `<span><i class="chip" style="background:var(--lead)"></i>Other vehicles</span><span><i class="chip" style="background:var(--brake)"></i>Brake lights on</span>`,
+    prepare: hxPrepare, draw: hxDraw, reveal: hxReveal,
+    controls: (st, P) => `<label class="ctl"><span>Agents</span><select id="agents">${HW_PAIRS.map(a => `<option value="${a}" ${a === st.agents ? 'selected' : ''}>${a.replace('-', ' vs ')}</option>`).join('')}</select></label>`,
+    bind(st) {
+      document.getElementById('agents').onchange = e => { st.agents = e.target.value; render(); };
+    },
+  },
+  recharge: {
+    name: 'Recharge', fps: RC.FPS, pairs: [M.HL, M.DIS], canvasClass: () => 'rc',
+    notice: '<b>Illustrative.</b> Robots follow hand-written routes on the source grid layout, not trained policies. HIGHLIGHTS and DISAGREEMENTS clip selection uses simplified stand-ins.',
+    intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Both sides show the same scene.',
+    q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently in this scene?',
+    legend: `<span><i class="chip" style="background:var(--task)"></i>Task not done</span><span><i class="chip" style="background:var(--zone)"></i>Area near the dock</span><span><i class="chip" style="background:var(--dock)"></i>Charging dock</span>`,
+    prepare: rcPrepare, draw: rcDraw, reveal: rcReveal,
+    controls: st => `<label class="ctl"><span>Scene</span><select id="scene">${RC_SCENES.map((s, i) => `<option value="${i}" ${i === st.scene ? 'selected' : ''}>${s.id}</option>`).join('')}</select></label>`,
+    bind(st) { document.getElementById('scene').onchange = e => { st.scene = +e.target.value; render(); }; },
+  },
+};
+
+// ================= Page =================
+// Adapted from the explanation satisfaction items in Amitai & Amir (2022), appendix; the task here is seeing differences.
+const RATINGS = ['After watching these videos, I understood how the two agents behave differently.',
+  'These videos contain sufficient detail for judging how the two agents differ.',
+  'These videos contain irrelevant details.',
+  'These videos were useful for the task.',
+  'The specific scenarios shown in these videos were useful for the task.'];
+const ratingScale = (side, i) => `<div class="rate-side" role="radiogroup" aria-label="${side}, statement ${i + 1}"><b>${side}</b>${[0, 1, 2, 3, 4, 5, 6]
+  .map(v => `<label class="opt"><input type="radio" name="rate-${side}-${i}" value="${v}"><span>${v}</span></label>`).join('')}</div>`;
+const ui = { env: 'highway', highway: { agents: 'FD-SP', pair: M.HL, reveal: false, trace: true }, highwayd: { agents: 'FD-SP', pair: M.DIS, reveal: false }, recharge: { scene: 0, pair: M.HL, reveal: false } };
+const $stage = document.getElementById('stage');
+let players = [];
+
+function clipCol(side, method, P) {
+  return `<div class="side"><div class="side-title"><span>${side}</span>${P.st.reveal ? `<span class="tag">${method}</span>` : ''}</div>
+    ${P.rows.map(l => `<div class="clip"><div class="clip-label"><i class="chip round" style="background:var(--agent-${l.toLowerCase()})"></i>Agent ${l}</div>
+      <canvas class="${P.cls}" data-method="${method}" data-label="${l}" aria-label="${side} summary, Agent ${l}"></canvas></div>`).join('')}
+    <div class="player"><button class="btn primary" data-play aria-label="Play ${side}">Play ${side}</button><div class="bar"><i></i></div><span class="mono muted" data-clock></span></div></div>`;
+}
+
+function render() {
+  players.forEach(p => p.stop()); players = [];
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.env === ui.env));
+  const E = ENVS[ui.env], st = ui[ui.env], P = { E, st, ...E.prepare(st), cls: E.canvasClass(st) };
+  $stage.innerHTML = `
+    <div class="notice">${E.notice}</div>
+    <div class="intro"><h2>${E.name}</h2><p class="muted">${E.intro}</p></div>
+    <div class="toolbar">
+      ${E.controls(st, P)}
+      <div class="ctl"><span>Comparison</span><div class="seg" role="group" aria-label="Method compared with ONSET">
+        ${E.pairs.map(m => `<button data-pair="${m}" aria-pressed="${st.pair === m}">ONSET vs ${m}</button>`).join('')}</div></div>
+      <label class="switch"><input type="checkbox" id="reveal" ${st.reveal ? 'checked' : ''}>Reveal methods</label>
+    </div>
+    <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend}</div>
+    ${P.missing ? '<div class="panel"><p>No clip is available for this combination yet.</p></div>' : `
+    <div class="sides">${clipCol('Left', P.left, P)}${clipCol('Right', P.right, P)}</div>
+    <div class="hint">${P.hint || `${P.D} policy steps at ${E.fps} Hz; each side has its own Play button`}</div>`}
+    <div class="panel">
+      <div class="q-title">${E.q1}</div>
+      <div class="opts">${[['left', 'Left'], ['right', 'Right'], ['equal', 'Both equally easy'], ['neither', 'Hard to tell on either side']]
+        .map(([v, t]) => `<label class="opt"><input type="radio" name="q1" value="${v}"><span>${t}</span></label>`).join('')}</div>
+      <ul class="qlist"><li><b>Q2</b>What difference in behavior did the left side show you?</li><li><b>Q3</b>What difference in behavior did the right side show you?</li><li><b>Q4</b>What was the main reason for your answer to Q1?</li></ul>
+    </div>
+    <div class="panel">
+      <div class="q-title">After all comparisons: rate the videos on each side</div>
+      <div class="hint">0 = strongly disagree, 6 = strongly agree. Asked once per side at the end of the study, not after each comparison.</div>
+      ${RATINGS.map((t, i) => `<div class="rate-item"><span>${t}</span>${ratingScale('Left', i)}${ratingScale('Right', i)}</div>`).join('')}
+    </div>
+    ${st.reveal && !P.missing ? `<div class="panel reveal"><div class="side-title"><span>Hidden from participants</span></div>${E.reveal(P)}</div>` : ''}`;
+
+  E.bind(st);
+  $stage.querySelectorAll('[data-pair]').forEach(b => b.onclick = () => { st.pair = b.dataset.pair; render(); });
+  document.getElementById('reveal').onchange = e => { st.reveal = e.target.checked; render(); };
+  if (!P.missing) players = [...$stage.querySelectorAll('.side')].map(el => makePlayer(P, el));
+}
+
+// One player per side; starting one stops the other, so only one summary moves at a time.
+function makePlayer(P, el) {
+  const { E } = P, cells = [...el.querySelectorAll('canvas')].map(cv => ({ cv, label: cv.dataset.label, ...P.cell(cv.dataset.method, cv.dataset.label) }));
+  const bar = el.querySelector('.bar > i'), clock = el.querySelector('[data-clock]'), btn = el.querySelector('[data-play]'), name = btn.textContent;
+  const last = P.D - 1, p = { f: 0, raf: 0, t0: 0, playing: false };
+  p.draw = () => { const g = tok(); cells.forEach(c => E.draw(c.cv, c, p.f, g(c.label === 'A' ? '--agent-a' : '--agent-b'), g, P));
+    bar.style.width = `${(p.f / Math.max(last, 1)) * 100}%`; clock.textContent = `${(p.f / E.fps).toFixed(1)} / ${(last / E.fps).toFixed(1)} s`; };
+  const tick = now => {
+    p.f = Math.min(last, Math.max(0, (now - p.t0) / 1000 * E.fps)); p.draw(); // rAF time can precede t0 on the first frame
+    if (p.f < last) { p.raf = requestAnimationFrame(tick); return; }
+    p.halt(); P.onEvent && P.onEvent('ended');
+  };
+  p.halt = () => { cancelAnimationFrame(p.raf); p.playing = false; btn.disabled = false; btn.textContent = name.replace('Play', 'Replay'); };
+  btn.onclick = () => { if (p.playing) return; players.forEach(o => o !== p && o.playing && o.halt()); p.playing = true; btn.disabled = true; p.t0 = performance.now(); p.raf = requestAnimationFrame(tick); P.onEvent && P.onEvent('play'); };
+  p.stop = () => { cancelAnimationFrame(p.raf); ro.disconnect(); };
+  const ro = new ResizeObserver(() => p.draw()); cells.forEach(c => ro.observe(c.cv));
+  p.draw();
+  return p;
+}
+
+// ================= Participant stimulus mode =================
+// Loaded inside a Qualtrics iframe as ?exp=armA|armD|recharge&pair=FD-SP (Highway) or &scene=R01 (Recharge)
+// &m=1 (ONSET) or 2 (the experiment's control method)&swap=0|1 (1 = second agent of the pair is Agent A).
+// Shows ONE method only: Agent A on top, Agent B below, one Play button. No method names, no questions.
+// Tells the parent page about playback with postMessage({type:'onset-stim', event, height}).
+const STIM_ENV = { armA: 'highway', armD: 'highwayd', recharge: 'recharge' };
+function renderStimulus(Q) {
+  document.documentElement.dataset.theme = 'light'; // same look for every participant, whatever their OS theme
+  document.body.classList.add('stim');
+  document.querySelector('header.top').remove();
+  const key = STIM_ENV[Q.get('exp')], E = ENVS[key];
+  const post = (event, extra) => { try { parent.postMessage({ type: 'onset-stim', event, height: document.documentElement.scrollHeight, ...extra }, '*'); } catch (e) {} };
+  const fail = msg => { $stage.innerHTML = `<div class="panel"><p>${msg}</p></div>`; post('error'); };
+  if (!E) return fail('This video could not be loaded. Please tell the researcher.');
+  const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: true };
+  if (key === 'recharge') { const i = RC_SCENES.findIndex(s => s.id === Q.get('scene')); if (i < 0) return fail('This video could not be loaded. Please tell the researcher.'); st.scene = i; }
+  else { if (!HW_PAIRS.includes(Q.get('pair'))) return fail('This video could not be loaded. Please tell the researcher.'); st.agents = Q.get('pair'); }
+  if (!['1', '2'].includes(Q.get('m'))) return fail('This video could not be loaded. Please tell the researcher.');
+  const method = Q.get('m') === '1' ? M.ON : st.pair;
+  const P = { E, st, ...E.prepare(st), cls: E.canvasClass(st) };
+  if (P.missing) return fail('This video could not be loaded. Please tell the researcher.');
+  P.onEvent = ev => post(ev);
+  $stage.innerHTML = `
+    <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend}</div>
+    <div class="sides one">${clipCol('Videos', method, P)}</div>
+    <div class="hint">${(P.hint || `${P.D} policy steps at ${E.fps} Hz`).replace(/;.*$/, '')}. You can replay as often as you like.</div>`;
+  players = [...$stage.querySelectorAll('.side')].map(el => makePlayer(P, el));
+  new ResizeObserver(() => post('resize')).observe(document.body);
+  post('ready');
+}
+
+const STIM_Q = new URLSearchParams(location.search);
+const STIM_ONLY = true; // set to true by scripts/build_stimulus_site.py for the public participant site
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => players.forEach(p => p.draw()));
+if (STIM_Q.has('exp')) renderStimulus(STIM_Q);
+else if (STIM_ONLY) { document.querySelector('header.top').remove(); $stage.innerHTML = '<div class="panel"><p>Nothing to show here.</p></div>'; }
+else {
+  function setEnv(env) { ui.env = env; try { history.replaceState(null, '', '#' + env); } catch (e) {} render(); }
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => setEnv(t.dataset.env));
+  ui.env = ENVS[location.hash.slice(1)] ? location.hash.slice(1) : 'highway';
+  render();
+}
+</script>

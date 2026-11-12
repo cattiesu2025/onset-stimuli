@@ -576,7 +576,7 @@ function renderStimulus(Q) {
     try { parent.postMessage({ type: 'onset-stim', event, height, ...extra }, '*'); } catch (e) {} };
   const fail = msg => { $stage.innerHTML = `<div class="panel"><p>${msg}</p></div>`; post('error'); };
   if (!E) return fail('This video could not be loaded. Please tell the researcher.');
-  const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: true };
+  const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: false }; // no speed trace: Arm D has none, and participants judge from the road view
   if (key === 'recharge') { const i = RC_SCENES.findIndex(s => s.id === Q.get('scene')); if (i < 0) return fail('This video could not be loaded. Please tell the researcher.'); st.scene = i; }
   else { if (!HW_PAIRS.includes(Q.get('pair'))) return fail('This video could not be loaded. Please tell the researcher.'); st.agents = Q.get('pair'); }
   if (!['1', '2'].includes(Q.get('m'))) return fail('This video could not be loaded. Please tell the researcher.');
@@ -585,7 +585,7 @@ function renderStimulus(Q) {
   if (P.missing) return fail('This video could not be loaded. Please tell the researcher.');
   P.onEvent = ev => post(ev);
   $stage.innerHTML = `
-    <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend}</div>
+    <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend.replace(' (dashed line: its speed)', '')}</div>
     <div class="sides one">${clipCol('Videos', method, P)}</div>
     <div class="hint">${(P.hint || `${P.D} policy steps at ${E.fps} Hz`).replace(/;.*$/, '')}. You can replay as often as you like.</div>`;
   players = [...$stage.querySelectorAll('.side')].map(el => makePlayer(P, el));

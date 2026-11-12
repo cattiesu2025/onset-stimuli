@@ -567,7 +567,11 @@ function renderStimulus(Q) {
   document.body.classList.add('stim');
   document.querySelector('header.top').remove();
   const key = STIM_ENV[Q.get('exp')], E = ENVS[key];
-  const post = (event, extra) => { try { parent.postMessage({ type: 'onset-stim', event, height: document.documentElement.scrollHeight, ...extra }, '*'); } catch (e) {} };
+  // Content height only: documentElement.scrollHeight includes the iframe's own viewport, so resizing to it grows forever.
+  const contentHeight = () => Math.ceil(document.querySelector('main').getBoundingClientRect().bottom + window.scrollY);
+  let lastH = 0;
+  const post = (event, extra) => { const height = contentHeight(); if (event === 'resize' && Math.abs(height - lastH) < 2) return; lastH = height;
+    try { parent.postMessage({ type: 'onset-stim', event, height, ...extra }, '*'); } catch (e) {} };
   const fail = msg => { $stage.innerHTML = `<div class="panel"><p>${msg}</p></div>`; post('error'); };
   if (!E) return fail('This video could not be loaded. Please tell the researcher.');
   const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: true };

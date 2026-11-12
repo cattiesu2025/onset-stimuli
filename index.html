@@ -463,7 +463,7 @@ const ENVS = {
     notice: `<b>Real episodes.</b> Arm D models FD, BAL and SP, training seed ${HXD.source.seed}. Each method picks its own ${HXD.onset_budget} clips for the agent pair from all 36 scenes, using its own selection rule, so the two sides need not show the same scenes.`,
     intro: 'Two self-driving cars, each driving on its own, meet a slower vehicle ahead on a two-lane road. Each side shows one summary per agent: four short clips played back to back. Play each side on its own. Every clip lasts the same time; the camera stays fixed.',
     q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
-    legend: `<span><i class="chip" style="background:var(--lead)"></i>Other vehicles</span><span><i class="chip" style="background:var(--brake)"></i>Brake lights on</span>`,
+    legend: `<span><i class="chip" style="background:var(--lead)"></i>Other vehicles</span>`, // no brake legend: Arm D agents never choose SLOWER (seed 4200), so brake lights never come on
     prepare: hxPrepare, draw: hxDraw, reveal: hxReveal,
     controls: (st, P) => `<label class="ctl"><span>Agents</span><select id="agents">${HW_PAIRS.map(a => `<option value="${a}" ${a === st.agents ? 'selected' : ''}>${a.replace('-', ' vs ')}</option>`).join('')}</select></label>`,
     bind(st) {

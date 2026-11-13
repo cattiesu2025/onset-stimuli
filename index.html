@@ -149,6 +149,7 @@ th { color: var(--muted); font-weight: 500; }
 
 <script src="highway_data.js"></script>
 <script src="highway_armd_data.js"></script>
+<script src="recharge_data.js"></script>
 <script>
 const M = { ON: 'ONSET', HL: 'HIGHLIGHTS', DIS: 'DISAGREEMENTS' };
 const short = m => ({ ONSET: 'ON', HIGHLIGHTS: 'HL', DISAGREEMENTS: 'DIS' }[m]);
@@ -333,60 +334,39 @@ function hxReveal(P) {
       <li>Display: each clip has a fixed camera wide enough to show the agent's whole stretch and every other vehicle, including the car in the target lane; one scale for all clips on the page. Each clip is exactly ${HXD.clip_len} steps.</li></ul>`;
 }
 
-// ================= Recharge (illustrative) =================
-// Layout from recharge_transition_timing grid pilot: 10x10, start (0,0), dock (9,9), original six tasks.
-const RC = { FPS: 4, W: 12, N: 10, DOCK: [9, 9], MOVE: 1, WORK: 3.5,
-  TASKS: { A: [1, 2], B: [3, 1], C: [2, 5], D: [5, 3], E: [4, 8], F: [8, 4] } };
-const inZone = p => p[0] >= 6 && p[1] >= 6;
-const RC_SCENES = [
-  { id: 'R01', battery: 40, plans: [['A', 'B'], ['A', 'B', 'D', 'F']] },
-  { id: 'R02', battery: 50, plans: [['A', 'B', 'D'], ['A', 'B', 'D', 'F', 'E']] },
-  { id: 'R03', battery: 34, plans: [['A', 'B'], ['A', 'C', 'E']], near: true },
-];
-function rcSimulate(sc, k) {
-  let pos = [0, 0], bat = sc.battery; const done = [];
-  const o = { pos: [], bat: [], done: [], act: [] };
-  const push = act => { o.pos.push(pos.slice()); o.bat.push(bat); o.done.push(done.slice()); o.act.push(act); };
-  push('START');
-  const go = t => { while (pos[0] !== t[0] || pos[1] !== t[1]) {
-    const dx = t[0] - pos[0], dy = t[1] - pos[1];
-    if (Math.abs(dx) >= Math.abs(dy)) pos[0] += Math.sign(dx); else pos[1] += Math.sign(dy);
-    bat -= RC.MOVE; push('MOVE'); } };
-  for (const name of sc.plans[k]) { go(RC.TASKS[name]); bat -= RC.WORK; done.push(name); push('WORK'); }
-  go(RC.DOCK);
-  return o;
-}
-function rcPad(trajs) { // hold the docked state so both agents share one timeline
-  const n = Math.max(...trajs.map(t => t.pos.length)) + 3;
-  trajs.forEach(t => { while (t.pos.length < n) { t.pos.push(t.pos.at(-1)); t.bat.push(t.bat.at(-1)); t.done.push(t.done.at(-1)); t.act.push('DOCKED'); } t.n = n; });
-  return trajs;
-}
-const rcEntry = tr => { let e = -1; tr.pos.forEach((p, i) => { if (i && inZone(p) && !inZone(tr.pos[i - 1])) e = i; }); return e; };
-function rcNominal(method, trajs, sc, k) {
-  if (method === M.ON) return rcEntry(trajs[k]) - 6;
-  if (method === M.HL) { // proxy importance: WORK actions weighted by battery already spent
-    const tr = trajs[k]; let best = 0, bi = 0;
-    tr.act.forEach((a, i) => { const imp = a === 'WORK' ? 1 + (sc.battery - tr.bat[i]) / sc.battery : 0; if (imp > best) { best = imp; bi = i; } });
-    return bi - Math.floor(RC.W / 2);
-  }
-  let d = 0; while (d < trajs[0].n && trajs[0].pos[d] + '' === trajs[1].pos[d] + '' && trajs[0].act[d] === trajs[1].act[d]) d++;
-  return d - 3;
-}
+// ================= Recharge (real episodes) =================
+// recharge_transition_timing v0.7.3: validation-selected models PROD, BAL and RES, one training seed,
+// 333 development scenes (9 layouts x batteries 24-60). Clips chosen by scripts/export_recharge_demo_data.py.
+const RCD = window.RC_DATA;
+const RC = { FPS: RCD.fps, W: RCD.clip_len, N: 10, DOCK: [9, 9] };
+const RC_PAIRS = Object.keys(RCD.clips.ONSET);
 function rcPrepare(st) {
-  const sc = RC_SCENES[st.scene], trajs = rcPad([rcSimulate(sc, 0), rcSimulate(sc, 1)]), n = trajs[0].n;
-  const h = hashStr('recharge' + sc.id), aIsEarly = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('recharge') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
-  const policyOf = { A: aIsEarly ? 0 : 1, B: aIsEarly ? 1 : 0 };
-  const win = m => [0, 1].map(k => { const nominal = rcNominal(m, trajs, sc, k), start = Math.min(Math.max(0, nominal), n - RC.W); return { start, end: start + RC.W, nominal }; });
-  const windows = { [M.ON]: win(M.ON), [st.pair]: win(st.pair) };
-  return { sc, trajs, policyOf, windows, earlyLabel: aIsEarly ? 'A' : 'B',
+  const conds = st.agents.split('-'), h = hashStr('recharge' + st.agents);
+  const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('recharge') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
+  const policyOf = { A: conds[aFirst ? 0 : 1], B: conds[aFirst ? 1 : 0] };
+  // ONSET: both agents in the same scenes and windows. HIGHLIGHTS: each agent's own top states.
+  const seqOf = (m, cond) => (m === M.ON ? RCD.clips.ONSET[st.agents] : RCD.clips.HIGHLIGHTS[cond]).map(c => ({ ...c, cond }));
+  const seqs = {};
+  if (RCD.clips.ONSET[st.agents]) for (const m of [M.ON, st.pair]) for (const l of ['A', 'B']) seqs[m + l] = seqOf(m, policyOf[l]);
+  return { policyOf, missing: !RCD.clips.ONSET[st.agents],
     left: onsetLeft ? M.ON : st.pair, right: onsetLeft ? st.pair : M.ON, rows: aTop ? ['A', 'B'] : ['B', 'A'],
-    cell: (m, l) => { const k = policyOf[l]; return { traj: trajs[k], start: windows[m][k].start, len: RC.W }; }, D: RC.W };
+    cell: (m, l) => ({ seq: seqs[m + l] }), D: (RCD.budget - 1) * (RC.W + HW_SEQ.GAP) + RC.W,
+    hint: `${RCD.budget} clips × ${RC.W} policy steps at ${RC.FPS} Hz, played back to back` };
 }
 function rcDraw(cv, cell, pf, color, g, P) {
   const c = fitCanvas(cv); if (!c) return; const { ctx, w, h } = c;
-  const traj = cell.traj, sc = P.sc, f = cell.start + Math.min(pf, cell.len - 1);
-  ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
   const panel = P.st.panel !== false; // participant page: grid only, no battery/task counters
+  const seg = RC.W + HW_SEQ.GAP, n = cell.seq.length, j = Math.min(Math.floor(pf / seg), n - 1), loc = pf - j * seg;
+  const fs = Math.max(10, h * 0.065);
+  if (loc > RC.W - 1 + 1e-6) { // gap between clips
+    ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = g('--ink'); ctx.font = `${fs * 1.4}px ${monoFont()}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`clip ${j + 2} / ${n}`, w / 2, h / 2); ctx.textAlign = 'left';
+    return;
+  }
+  const clip = cell.seq[j], ep = RCD.episodes[clip.scene][clip.cond], tasks = RCD.layouts[clip.scene.split('@')[0]];
+  const last = ep.pos.length - 1, f = Math.min(clip.start + loc, last); // after the run ends the robot stays where it stopped
+  ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
   const pad = h * 0.05, gs = h - pad * 2, cs = gs / RC.N, ox = panel ? pad : (w - gs) / 2, oy = pad;
   ctx.fillStyle = g('--surface'); ctx.fillRect(ox, oy, gs, gs);
   ctx.fillStyle = g('--notask'); ctx.fillRect(ox + 5 * cs, oy + 5 * cs, 5 * cs, 5 * cs);
@@ -394,7 +374,7 @@ function rcDraw(cv, cell, pf, color, g, P) {
   ctx.strokeStyle = g('--line'); ctx.lineWidth = 1; ctx.beginPath();
   for (let i = 0; i <= RC.N; i++) { ctx.moveTo(ox + i * cs, oy); ctx.lineTo(ox + i * cs, oy + gs); ctx.moveTo(ox, oy + i * cs); ctx.lineTo(ox + gs, oy + i * cs); }
   ctx.stroke();
-  const i0 = Math.floor(f), i1 = Math.min(i0 + 1, traj.n - 1), fr = f - i0, cur = Math.min(Math.round(f), traj.n - 1);
+  const i0 = Math.floor(f), i1 = Math.min(i0 + 1, last), fr = f - i0, cur = Math.round(f);
   ctx.fillStyle = g('--dock'); ctx.beginPath(); ctx.roundRect(ox + 9 * cs + cs * 0.15, oy + 9 * cs + cs * 0.15, cs * 0.7, cs * 0.7, 3); ctx.fill();
   const bx = ox + 9.5 * cs, bby = oy + 9.5 * cs, u = cs * 0.22; // lightning bolt
   ctx.fillStyle = g('--surface'); ctx.beginPath();
@@ -403,48 +383,47 @@ function rcDraw(cv, cell, pf, color, g, P) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   // Participant page: tasks finished before the clip starts are drawn as not done, so the grid shows only what happens in the clip
   // (otherwise a clip near the end of a run reveals the run's total by counting outlines).
-  const before = panel ? [] : traj.done[Math.min(cell.start, traj.n - 1)], done = traj.done[cur].filter(t => !before.includes(t));
-  for (const [name, [x, y]] of Object.entries(RC.TASKS)) {
+  const before = panel ? [] : ep.done[Math.min(clip.start, last)], done = ep.done[cur].filter(t => !before.includes(t));
+  for (const [name, [x, y]] of Object.entries(tasks)) {
     const cx = ox + (x + 0.5) * cs, cy = oy + (y + 0.5) * cs, r = cs * 0.32, isDone = done.includes(name);
     ctx.beginPath(); ctx.rect(cx - r, cy - r, r * 2, r * 2);
     if (isDone) { ctx.strokeStyle = g('--muted'); ctx.lineWidth = 1.2; ctx.stroke(); } else { ctx.fillStyle = g('--task'); ctx.fill(); }
     ctx.fillStyle = isDone ? g('--muted') : g('--surface'); ctx.font = `600 ${cs * 0.38}px ${monoFont()}`; ctx.fillText(name, cx, cy + 0.5);
   }
+  const t0 = Math.max(panel ? 0 : clip.start, i0 - 8); // participant page: trail starts at the clip, matching the task marks
   ctx.strokeStyle = color; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(2, cs * 0.12); ctx.beginPath();
-  const t0 = Math.max(panel ? 0 : cell.start, i0 - 8); // participant page: trail starts at the clip, matching the task marks
-  for (let i = t0; i <= i0; i++) { const p = traj.pos[i], X = ox + (p[0] + 0.5) * cs, Y = oy + (p[1] + 0.5) * cs; i === t0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
+  for (let i = t0; i <= i0; i++) { const p = ep.pos[i], X = ox + (p[0] + 0.5) * cs, Y = oy + (p[1] + 0.5) * cs; i === t0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
   ctx.stroke(); ctx.globalAlpha = 1;
-  const p0 = traj.pos[i0], p1 = traj.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
-  if (traj.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }
+  const p0 = ep.pos[i0], p1 = ep.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
+  if (ep.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(rx, ry, cs * 0.3, 0, Math.PI * 2); ctx.fill();
-  const fs = Math.max(10, h * 0.065);
-  if (!panel) { watermark(ctx, w, h, fs * 0.85); return; }
-  const px = ox + gs + pad * 2.2, pw = w - px - pad;
+  if (clip.start + loc > last + 1e-6) endShade(ctx, w, h, g); // run already over: same end shading as Highway
+  if (!panel) return;
+  const px = ox + gs + pad * 2.2, pw = w - px - pad, cap = ep.bat[0];
   ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = `${fs}px ${monoFont()}`;
-  const bat = traj.bat[cur], frac = Math.max(0, bat / sc.battery);
+  const bat = ep.bat[cur], frac = Math.max(0, bat / cap);
   ctx.fillStyle = g('--muted'); ctx.fillText('BATTERY', px, oy);
-  ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${bat.toFixed(1)} / ${sc.battery}`, px, oy + fs * 1.3);
+  ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${bat.toFixed(1)} / ${cap}`, px, oy + fs * 1.3);
   const by = oy + fs * 3.1, bh = fs * 0.8;
   ctx.fillStyle = g('--line'); ctx.fillRect(px, by, pw, bh);
   ctx.fillStyle = frac < 0.25 ? g('--brake') : g('--dock'); ctx.fillRect(px, by, pw * frac, bh);
   ctx.font = `${fs}px ${monoFont()}`;
   ctx.fillStyle = g('--muted'); ctx.fillText('TASKS DONE', px, by + bh + fs * 1.1);
-  ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${done.length}`, px, by + bh + fs * 2.4);
+  ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${ep.done[cur].length}`, px, by + bh + fs * 2.4);
   ctx.font = `${fs}px ${monoFont()}`;
-  ctx.fillStyle = g('--muted'); ctx.fillText(`step ${cur}`, px, by + bh + fs * 4.7);
-  if (traj.pos[cur] + '' === RC.DOCK + '') { ctx.fillStyle = g('--dock'); ctx.fillText('docked', px, by + bh + fs * 6); }
-  watermark(ctx, w, h, fs * 0.85);
+  ctx.fillStyle = g('--muted'); ctx.fillText(`clip ${j + 1}/${n} · step ${cur}`, px, by + bh + fs * 4.7);
+  if (cur === last) { ctx.fillStyle = ep.outcome === 'returned' ? g('--dock') : g('--brake'); ctx.fillText(ep.outcome.replace(/_/g, ' '), px, by + bh + fs * 6); }
 }
 function rcReveal(P) {
-  const rows = [P.left, P.right].flatMap((m, si) => ['A', 'B'].map(l => {
-    const k = P.policyOf[l], w = P.windows[m][k];
-    return `<tr><td>${si ? 'Right' : 'Left'}</td><td class="mono">${short(m)}</td><td>Agent ${l}</td><td class="mono">[${w.start}, ${w.end})</td><td>${w.start !== w.nominal ? `<span class="tag warn">shifted ${w.start - w.nominal > 0 ? '+' : ''}${w.start - w.nominal}</span>` : '<span class="tag">as selected</span>'}</td></tr>`; })).join('');
-  return `<div class="tbl-wrap"><table><thead><tr><th>Agent</th><th>Route in this scene</th></tr></thead><tbody>
-      ${['A', 'B'].map(l => `<tr><td>Agent ${l}${P.earlyLabel === l ? ' <span class="tag">earlier ONSET</span>' : ''}</td><td>${P.sc.plans[P.policyOf[l]].join(' → ')} → dock</td></tr>`).join('')}</tbody></table></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Steps</th><th>Boundary</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <ul class="notes"><li>ONSET here is the final entry into the 4×4 area near the dock; the source rule (3 net moves toward the dock within 8 steps) is not reproduced.</li>
-      <li>HIGHLIGHTS uses a "WORK × battery spent" importance proxy within this scene. DISAGREEMENTS starts 3 steps before the two robots first diverge.</li>
-      <li>Windows that run past the episode edge are shifted to full length, using the same rule for every method.</li></ul>`;
+  const rows = [P.left, P.right].flatMap((m, si) => ['A', 'B'].flatMap(l => P.cell(m, l).seq.map((s, k) => {
+    const ep = RCD.episodes[s.scene][s.cond], sel = m === M.ON ? `onset ${s.onsets[s.cond]}` : `state ${s.state} (Δq ${s.importance})`;
+    return `<tr><td>${si ? 'Right' : 'Left'}</td><td class="mono">${short(m)}</td><td>Agent ${l} · ${s.cond}</td><td class="mono">${k + 1}</td><td class="mono">${s.scene}</td>
+      <td class="mono">[${s.start}, ${s.start + RC.W})</td><td class="mono">${sel}</td><td class="mono">${ep.work} · ${ep.outcome.replace(/_/g, ' ')}</td></tr>`; })));
+  return `<div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Clip</th><th>Scene (layout@battery)</th><th>Steps</th><th>Selected by</th><th>Run: tasks · end</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <ul class="notes"><li>Models: recharge_transition_timing v0.7.3 validation-selected PROD, BAL and RES, training seed ${RCD.source.seed}; 333 development scenes. Every episode was replayed with the saved model and checked against the stored log step by step.</li>
+      <li>ONSET: final entry into the 4×4 area at the dock (source final_entry, net progress 2). Scenes ranked by the two agents' onset difference; both agents share one ${RC.W}-step window centred on the midpoint of their onsets; scenes whose onsets cannot both fit are skipped.</li>
+      <li>HIGHLIGHTS: importance = max Q − second max Q over valid actions; each agent's own top states over all 333 scenes; window [t−${RC.W / 2}, t+${RC.W / 2}) shifted to fit the run.</li>
+      <li>Both methods: ${RCD.budget} clips per agent, at most one clip per layout (neighbouring batteries give near-identical runs). After a run ends the robot stays where it stopped and the clip is shaded.</li></ul>`;
 }
 
 // ================= Environment registry =================
@@ -478,14 +457,14 @@ const ENVS = {
     },
   },
   recharge: {
-    name: 'Recharge', fps: RC.FPS, pairs: [M.HL, M.DIS], canvasClass: st => st.panel === false ? 'rc-grid' : 'rc',
-    notice: '<b>Illustrative.</b> Robots follow hand-written routes on the source grid layout, not trained policies. HIGHLIGHTS and DISAGREEMENTS clip selection uses simplified stand-ins.',
-    intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Both sides show the same scene.',
-    q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently in this scene?',
+    name: 'Recharge', fps: RC.FPS, pairs: [M.HL], canvasClass: st => st.panel === false ? 'rc-grid' : 'rc',
+    notice: `<b>Real episodes.</b> Recharge models PROD, BAL and RES (v0.7.3), training seed ${RCD.source.seed}. Each method picks its own ${RCD.budget} clips per agent from 333 development scenes, using its own selection rule.`,
+    intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Each side shows five short clips per robot, played back to back.',
+    q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
     legend: `<span><i class="chip" style="background:var(--task)"></i>Task not done</span><span><i class="chip" style="background:var(--zone)"></i>Area near the dock</span><span><i class="chip" style="background:var(--dock)"></i>Charging dock</span>`,
     prepare: rcPrepare, draw: rcDraw, reveal: rcReveal,
-    controls: st => `<label class="ctl"><span>Scene</span><select id="scene">${RC_SCENES.map((s, i) => `<option value="${i}" ${i === st.scene ? 'selected' : ''}>${s.id}</option>`).join('')}</select></label>`,
-    bind(st) { document.getElementById('scene').onchange = e => { st.scene = +e.target.value; render(); }; },
+    controls: st => `<label class="ctl"><span>Agents</span><select id="agents">${RC_PAIRS.map(a => `<option value="${a}" ${a === st.agents ? 'selected' : ''}>${a.replace('-', ' vs ')}</option>`).join('')}</select></label>`,
+    bind(st) { document.getElementById('agents').onchange = e => { st.agents = e.target.value; render(); }; },
   },
 };
 
@@ -498,7 +477,7 @@ const RATINGS = ['After watching these videos, I understood how the two agents b
   'The specific scenarios shown in these videos were useful for the task.'];
 const ratingScale = (side, i) => `<div class="rate-side" role="radiogroup" aria-label="${side}, statement ${i + 1}"><b>${side}</b>${[0, 1, 2, 3, 4, 5, 6]
   .map(v => `<label class="opt"><input type="radio" name="rate-${side}-${i}" value="${v}"><span>${v}</span></label>`).join('')}</div>`;
-const ui = { env: 'highway', highway: { agents: 'FD-SP', pair: M.HL, reveal: false, trace: true }, highwayd: { agents: 'FD-SP', pair: M.DIS, reveal: false }, recharge: { scene: 0, pair: M.HL, reveal: false } };
+const ui = { env: 'highway', highway: { agents: 'FD-SP', pair: M.HL, reveal: false, trace: true }, highwayd: { agents: 'FD-SP', pair: M.DIS, reveal: false }, recharge: { agents: 'PROD-RES', pair: M.HL, reveal: false } };
 const $stage = document.getElementById('stage');
 let players = [];
 
@@ -566,7 +545,7 @@ function makePlayer(P, el) {
 }
 
 // ================= Participant stimulus mode =================
-// Loaded inside a Qualtrics iframe as ?exp=armA|armD|recharge&pair=FD-SP (Highway) or &scene=R01 (Recharge)
+// Loaded inside a Qualtrics iframe as ?exp=armA|armD|recharge&pair=FD-SP (Highway) or &pair=PROD-RES (Recharge)
 // &m=1 (ONSET) or 2 (the experiment's control method)&swap=0|1 (1 = second agent of the pair is Agent A).
 // Shows ONE method only: Agent A on top, Agent B below, one Play button. No method names, no questions.
 // Tells the parent page about playback with postMessage({type:'onset-stim', event, height}).
@@ -584,8 +563,8 @@ function renderStimulus(Q) {
   const fail = msg => { $stage.innerHTML = `<div class="panel"><p>${msg}</p></div>`; post('error'); };
   if (!E) return fail('This video could not be loaded. Please tell the researcher.');
   const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: false, panel: false }; // no speed trace: Arm D has none, and participants judge from the road view
-  if (key === 'recharge') { const i = RC_SCENES.findIndex(s => s.id === Q.get('scene')); if (i < 0) return fail('This video could not be loaded. Please tell the researcher.'); st.scene = i; }
-  else { if (!HW_PAIRS.includes(Q.get('pair'))) return fail('This video could not be loaded. Please tell the researcher.'); st.agents = Q.get('pair'); }
+  if (!(key === 'recharge' ? RC_PAIRS : HW_PAIRS).includes(Q.get('pair'))) return fail('This video could not be loaded. Please tell the researcher.');
+  st.agents = Q.get('pair');
   if (!['1', '2'].includes(Q.get('m'))) return fail('This video could not be loaded. Please tell the researcher.');
   const method = Q.get('m') === '1' ? M.ON : st.pair;
   const P = { E, st, ...E.prepare(st), cls: E.canvasClass(st) };

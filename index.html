@@ -411,7 +411,8 @@ function rcDraw(cv, cell, pf, color, g, P) {
     ctx.fillStyle = isDone ? g('--muted') : g('--surface'); ctx.font = `600 ${cs * 0.38}px ${monoFont()}`; ctx.fillText(name, cx, cy + 0.5);
   }
   ctx.strokeStyle = color; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(2, cs * 0.12); ctx.beginPath();
-  for (let i = Math.max(0, i0 - 8); i <= i0; i++) { const p = traj.pos[i], X = ox + (p[0] + 0.5) * cs, Y = oy + (p[1] + 0.5) * cs; i === Math.max(0, i0 - 8) ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
+  const t0 = Math.max(panel ? 0 : cell.start, i0 - 8); // participant page: trail starts at the clip, matching the task marks
+  for (let i = t0; i <= i0; i++) { const p = traj.pos[i], X = ox + (p[0] + 0.5) * cs, Y = oy + (p[1] + 0.5) * cs; i === t0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
   ctx.stroke(); ctx.globalAlpha = 1;
   const p0 = traj.pos[i0], p1 = traj.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
   if (traj.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }

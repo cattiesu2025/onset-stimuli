@@ -344,8 +344,8 @@ function rcPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('recharge' + st.agents);
   const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('recharge') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
   const policyOf = { A: conds[aFirst ? 0 : 1], B: conds[aFirst ? 1 : 0] };
-  // ONSET: both agents in the same scenes and windows. HIGHLIGHTS: each agent's own top states.
-  const seqOf = (m, cond) => (m === M.ON ? RCD.clips.ONSET[st.agents] : RCD.clips.HIGHLIGHTS[cond]).map(c => ({ ...c, cond }));
+  // ONSET: both agents in the same scenes, each clip centred on that agent's own onset. HIGHLIGHTS: each agent's own top states.
+  const seqOf = (m, cond) => (m === M.ON ? RCD.clips.ONSET[st.agents] : RCD.clips.HIGHLIGHTS[cond]).map(c => ({ ...c, cond, start: c.starts ? c.starts[cond] : c.start }));
   const seqs = {};
   if (RCD.clips.ONSET[st.agents]) for (const m of [M.ON, st.pair]) for (const l of ['A', 'B']) seqs[m + l] = seqOf(m, policyOf[l]);
   return { policyOf, missing: !RCD.clips.ONSET[st.agents],
@@ -421,7 +421,7 @@ function rcReveal(P) {
       <td class="mono">[${s.start}, ${s.start + RC.W})</td><td class="mono">${sel}</td><td class="mono">${ep.work} · ${ep.outcome.replace(/_/g, ' ')}</td></tr>`; })));
   return `<div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Clip</th><th>Scene (layout@battery)</th><th>Steps</th><th>Selected by</th><th>Run: tasks · end</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
     <ul class="notes"><li>Models: recharge_transition_timing v0.7.3 validation-selected PROD, BAL and RES, training seed ${RCD.source.seed}; 333 development scenes. Every episode was replayed with the saved model and checked against the stored log step by step.</li>
-      <li>ONSET: final entry into the 4×4 area at the dock (source final_entry, net progress 2). Scenes ranked by the two agents' onset difference; both agents share one ${RC.W}-step window centred on the midpoint of their onsets; scenes whose onsets cannot both fit are skipped.</li>
+      <li>ONSET: final entry into the 4×4 area at the dock (source final_entry, net progress 2). Scenes ranked by the two agents' onset difference; both agents are shown in the same scenes, each clip [onset−${RC.W / 2}, onset+${RC.W / 2}) around that agent's own onset, so the two rows are not the same steps. Runs last about 20 steps, so one shared window cannot hold two onsets 10+ steps apart.</li>
       <li>HIGHLIGHTS: importance = max Q − second max Q over valid actions; each agent's own top states over all 333 scenes; window [t−${RC.W / 2}, t+${RC.W / 2}) shifted to fit the run.</li>
       <li>Both methods: ${RCD.budget} clips per agent, at most one clip per layout (neighbouring batteries give near-identical runs). After a run ends the robot stays where it stopped and the clip is shaded.</li></ul>`;
 }

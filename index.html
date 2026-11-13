@@ -96,7 +96,11 @@ body.stim .wrap { max-width: 760px; gap: 12px; }
 .clip canvas.hw { aspect-ratio: 4 / 1; }
 .clip canvas.hw-trace { aspect-ratio: 5 / 2; }
 .clip canvas.rc { aspect-ratio: 2 / 1; }
-.clip canvas.rc-grid { aspect-ratio: 3 / 2; }
+.clip canvas.rc-grid { aspect-ratio: 1 / 1; }
+.clips { display: grid; gap: inherit; min-width: 0; }
+/* Recharge participant page: the two robots side by side so both grids fit on a laptop screen */
+.clips:has(canvas.rc-grid) { grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .clips:has(canvas.rc-grid) { grid-template-columns: 1fr; } }
 .player { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; }
 .bar { flex: 1 1 180px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
@@ -483,8 +487,8 @@ let players = [];
 
 function clipCol(side, method, P) {
   return `<div class="side"><div class="side-title"><span>${side}</span>${P.st.reveal ? `<span class="tag">${method}</span>` : ''}</div>
-    ${P.rows.map(l => `<div class="clip"><div class="clip-label"><i class="chip round" style="background:var(--agent-${l.toLowerCase()})"></i>Agent ${l}</div>
-      <canvas class="${P.cls}" data-method="${method}" data-label="${l}" aria-label="${side} summary, Agent ${l}"></canvas></div>`).join('')}
+    <div class="clips">${P.rows.map(l => `<div class="clip"><div class="clip-label"><i class="chip round" style="background:var(--agent-${l.toLowerCase()})"></i>Agent ${l}</div>
+      <canvas class="${P.cls}" data-method="${method}" data-label="${l}" aria-label="${side} summary, Agent ${l}"></canvas></div>`).join('')}</div>
     <div class="player"><button class="btn primary" data-play aria-label="Play ${side}">Play ${side}</button><div class="bar"><i></i></div><span class="mono muted" data-clock></span></div></div>`;
 }
 

@@ -166,9 +166,9 @@ function fitCanvas(cv) {
 }
 const watermark = (ctx, w, h, size) => { ctx.font = `${size}px ${monoFont()}`; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
   ctx.fillStyle = 'rgba(127,127,127,0.6)'; ctx.fillText('illustrative', w - 6, h - 3); ctx.textAlign = 'left'; };
-const endShade = (ctx, w, h, g) => { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, w, h);
+const endShade = (ctx, w, h, g, text = 'clip ended') => { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = '#fff'; ctx.font = `${Math.max(11, h * 0.08)}px ${monoFont()}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('clip ended', w / 2, h / 2); ctx.textAlign = 'left'; };
+  ctx.fillText(text, w / 2, h / 2); ctx.textAlign = 'left'; };
 
 // ================= Highway (real episodes, native selection; see scripts/export_highway_demo_data.py) =================
 const HWD = window.HW_DATA;
@@ -344,7 +344,7 @@ function rcPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('recharge' + st.agents);
   const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('recharge') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
   const policyOf = { A: conds[aFirst ? 0 : 1], B: conds[aFirst ? 1 : 0] };
-  // ONSET: both agents in the same scenes, each clip centred on that agent's own onset. HIGHLIGHTS: each agent's own top states.
+  // ONSET: both agents in the same scenes and steps, around the earlier onset. HIGHLIGHTS: each agent's own top states.
   const seqOf = (m, cond) => (m === M.ON ? RCD.clips.ONSET[st.agents] : RCD.clips.HIGHLIGHTS[cond]).map(c => ({ ...c, cond, start: c.starts ? c.starts[cond] : c.start }));
   const seqs = {};
   if (RCD.clips.ONSET[st.agents]) for (const m of [M.ON, st.pair]) for (const l of ['A', 'B']) seqs[m + l] = seqOf(m, policyOf[l]);
@@ -397,7 +397,7 @@ function rcDraw(cv, cell, pf, color, g, P) {
   const p0 = ep.pos[i0], p1 = ep.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
   if (ep.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(rx, ry, cs * 0.3, 0, Math.PI * 2); ctx.fill();
-  if (clip.start + loc > last + 1e-6) endShade(ctx, w, h, g); // run already over: same end shading as Highway
+  if (clip.start + loc > last + 1e-6) endShade(ctx, w, h, g, ep.outcome === 'exhausted' ? 'battery empty' : 'back at the dock'); // run over: say what happened, not 'clip ended'
   if (!panel) return;
   const px = ox + gs + pad * 2.2, pw = w - px - pad, cap = ep.bat[0];
   ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = `${fs}px ${monoFont()}`;
@@ -421,7 +421,7 @@ function rcReveal(P) {
       <td class="mono">[${s.start}, ${s.start + RC.W})</td><td class="mono">${sel}</td><td class="mono">${ep.work} · ${ep.outcome.replace(/_/g, ' ')}</td></tr>`; })));
   return `<div class="tbl-wrap"><table><thead><tr><th>Side</th><th>Method</th><th>Agent</th><th>Clip</th><th>Scene (layout@battery)</th><th>Steps</th><th>Selected by</th><th>Run: tasks · end</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
     <ul class="notes"><li>Models: recharge_transition_timing v0.7.3 validation-selected PROD, BAL and RES, training seed ${RCD.source.seed}; 333 development scenes. Every episode was replayed with the saved model and checked against the stored log step by step.</li>
-      <li>ONSET: final entry into the 4×4 area at the dock (source final_entry, net progress 2). Scenes ranked by the two agents' onset difference; both agents are shown in the same scenes, each clip [onset−${RC.W / 2}, onset+${RC.W / 2}) around that agent's own onset, so the two rows are not the same steps. Runs last about 20 steps, so one shared window cannot hold two onsets 10+ steps apart.</li>
+      <li>ONSET: final entry into the 4×4 area at the dock (source final_entry, net progress 2). Scenes ranked by the two agents' onset difference; both agents share one window [early−${RC.W / 2}, early+${RC.W / 2}) around the earlier of the two onsets, so at the same steps one robot heads in while the other is still out. Only onsets are used, not task counts.</li>
       <li>HIGHLIGHTS: importance = max Q − second max Q over valid actions; each agent's own top states over all 333 scenes; window [t−${RC.W / 2}, t+${RC.W / 2}) shifted to fit the run.</li>
       <li>Both methods: ${RCD.budget} clips per agent, at most one clip per layout (neighbouring batteries give near-identical runs). After a run ends the robot stays where it stopped and the clip is shaded.</li></ul>`;
 }

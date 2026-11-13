@@ -369,7 +369,7 @@ function rcDraw(cv, cell, pf, color, g, P) {
   ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
   const pad = h * 0.05, gs = h - pad * 2, cs = gs / RC.N, ox = panel ? pad : (w - gs) / 2, oy = pad;
   ctx.fillStyle = g('--surface'); ctx.fillRect(ox, oy, gs, gs);
-  ctx.fillStyle = g('--notask'); ctx.fillRect(ox + 5 * cs, oy + 5 * cs, 5 * cs, 5 * cs);
+  // Only the 4x4 area used by ONSET is shaded; the task-free 5x5 band is not drawn (it read as part of the area).
   ctx.fillStyle = g('--zone'); ctx.fillRect(ox + 6 * cs, oy + 6 * cs, 4 * cs, 4 * cs);
   ctx.strokeStyle = g('--line'); ctx.lineWidth = 1; ctx.beginPath();
   for (let i = 0; i <= RC.N; i++) { ctx.moveTo(ox + i * cs, oy); ctx.lineTo(ox + i * cs, oy + gs); ctx.moveTo(ox, oy + i * cs); ctx.lineTo(ox + gs, oy + i * cs); }
@@ -461,7 +461,7 @@ const ENVS = {
     notice: `<b>Real episodes.</b> Recharge models PROD, BAL and RES (v0.7.3), training seed ${RCD.source.seed}. Each method picks its own ${RCD.budget} clips per agent from 333 development scenes, using its own selection rule.`,
     intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Each side shows five short clips per robot, played back to back.',
     q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
-    legend: `<span><i class="chip" style="background:var(--task)"></i>Task not done</span><span><i class="chip" style="background:var(--zone)"></i>Area near the dock</span><span><i class="chip" style="background:var(--dock)"></i>Charging dock</span>`,
+    legend: `<span><i class="chip" style="background:var(--task)"></i>Task not done</span><span><i class="chip" style="background:var(--zone)"></i>Charging area</span><span><i class="chip" style="background:var(--dock)"></i>Charging dock</span>`,
     prepare: rcPrepare, draw: rcDraw, reveal: rcReveal,
     controls: st => `<label class="ctl"><span>Agents</span><select id="agents">${RC_PAIRS.map(a => `<option value="${a}" ${a === st.agents ? 'selected' : ''}>${a.replace('-', ' vs ')}</option>`).join('')}</select></label>`,
     bind(st) { document.getElementById('agents').onchange = e => { st.agents = e.target.value; render(); }; },

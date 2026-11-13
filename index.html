@@ -151,9 +151,17 @@ th { color: var(--muted); font-weight: 500; }
 
 <main><div class="wrap" id="stage" role="tabpanel"></div></main>
 
-<script src="highway_data.js"></script>
-<script src="highway_armd_data.js"></script>
-<script src="recharge_data.js"></script>
+<script>
+// One stimulus set per training seed (scripts/export_*_demo_data.py --seed). Only the requested set is loaded;
+// the other environments get their default set so the page code can start. ?exp=...&seed=... picks the set.
+const STIM_SETS = { armA: [3100, 3101, 3102, 3103, 3104], armD: [4200, 4201, 4202, 4203, 4204], recharge: [4100, 4101, 4102] };
+const STIM_FILES = { armA: 'highway_data', armD: 'highway_armd_data', recharge: 'recharge_data' };
+const STIM_SEED = (() => { const q = new URLSearchParams(location.search), exp = q.get('exp'), seed = +q.get('seed');
+  const pick = {}; for (const k in STIM_SETS) pick[k] = STIM_SETS[k][0];
+  let ok = true; if (exp in STIM_SETS && q.has('seed')) { if (STIM_SETS[exp].includes(seed)) pick[exp] = seed; else ok = false; }
+  for (const k in STIM_SETS) document.write(`<script src="data/${STIM_FILES[k]}_${pick[k]}.js"><\/script>`);
+  return { ...pick, ok }; })();
+</script>
 <script>
 const M = { ON: 'ONSET', HL: 'HIGHLIGHTS', DIS: 'DISAGREEMENTS' };
 const short = m => ({ ONSET: 'ON', HIGHLIGHTS: 'HL', DISAGREEMENTS: 'DIS' }[m]);
@@ -566,6 +574,7 @@ function renderStimulus(Q) {
     try { parent.postMessage({ type: 'onset-stim', event, height, ...extra }, '*'); } catch (e) {} };
   const fail = msg => { $stage.innerHTML = `<div class="panel"><p>${msg}</p></div>`; post('error'); };
   if (!E) return fail('This video could not be loaded. Please tell the researcher.');
+  if (!STIM_SEED.ok) return fail('This video could not be loaded. Please tell the researcher.');
   const st = { ...ui[key], swap: Q.get('swap') === '1', reveal: false, trace: false, panel: false }; // no speed trace: Arm D has none, and participants judge from the road view
   if (!(key === 'recharge' ? RC_PAIRS : HW_PAIRS).includes(Q.get('pair'))) return fail('This video could not be loaded. Please tell the researcher.');
   st.agents = Q.get('pair');

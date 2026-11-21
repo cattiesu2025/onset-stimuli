@@ -156,10 +156,12 @@ th { color: var(--muted); font-weight: 500; }
 // the other environments get their default set so the page code can start. ?exp=...&seed=... picks the set.
 const STIM_SETS = { armA: [3100, 3101, 3102, 3103, 3104], armD: [4200, 4201, 4202, 4203, 4204], recharge: [4100, 4101, 4102] };
 const STIM_FILES = { armA: 'highway_data', armD: 'highway_armd_data', recharge: 'recharge_data' };
+// Cache-busting version for the data files: every load locally; a content hash on the public site (scripts/build_stimulus_site.py).
+const DATA_V = '9453799f6eff';
 const STIM_SEED = (() => { const q = new URLSearchParams(location.search), exp = q.get('exp'), seed = +q.get('seed');
   const pick = {}; for (const k in STIM_SETS) pick[k] = STIM_SETS[k][0];
   let ok = true; if (exp in STIM_SETS && q.has('seed')) { if (STIM_SETS[exp].includes(seed)) pick[exp] = seed; else ok = false; }
-  for (const k in STIM_SETS) document.write(`<script src="data/${STIM_FILES[k]}_${pick[k]}.js"><\/script>`);
+  for (const k in STIM_SETS) document.write(`<script src="data/${STIM_FILES[k]}_${pick[k]}.js?v=${DATA_V}"><\/script>`);
   return { ...pick, ok }; })();
 </script>
 <script>
@@ -179,15 +181,21 @@ function fitCanvas(cv) {
 const watermark = (ctx, w, h, size) => { ctx.font = `${size}px ${monoFont()}`; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
   ctx.fillStyle = 'rgba(127,127,127,0.6)'; ctx.fillText('illustrative', w - 6, h - 3); ctx.textAlign = 'left'; };
 const endShade = (ctx, w, h, g, text = 'clip ended') => { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = '#fff'; ctx.font = `${Math.max(11, h * 0.08)}px ${monoFont()}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  // Label on its own dark box so it stays readable over grid labels and tasks.
+  const fs = Math.max(11, Math.min(h * 0.06, w * 0.05)); ctx.font = `${fs}px ${monoFont()}`;
+  const tw = ctx.measureText(text).width, pad = fs * 0.5;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(w / 2 - tw / 2 - pad, h / 2 - fs * 0.5 - pad, tw + 2 * pad, fs + 2 * pad);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(text, w / 2, h / 2); ctx.textAlign = 'left'; };
 
 // ================= Highway (real episodes, native selection; see scripts/export_highway_demo_data.py) =================
 const HWD = window.HW_DATA;
-const HW = { HZ: HWD.policy_hz, CAR_L: 5 };
+// PLAY: playback rate, 0.8 of the 5 Hz policy rate, so each 20-step clip lasts 5 s (2026-11-22). HZ stays the real rate (time labels).
+const HW = { HZ: HWD.policy_hz, PLAY: HWD.policy_hz * 0.8, CAR_L: 5 };
 const HW_PAIRS = ['FD-SP', 'FD-BAL', 'BAL-SP'];
 // A summary is BUDGET clips of CLIP steps played back to back, with a short dark gap between clips.
-const HW_SEQ = { N: HWD.budget, CLIP: HWD.clip_len, GAP: 3 }; HW_SEQ.SEG = HW_SEQ.CLIP + HW_SEQ.GAP;
+// GAP 5 frames: the blank between clips lasts GAP + 1 frames = 1.5 s at the 4 steps/s playback rate (same 1.5 s as Recharge).
+const HW_SEQ = { N: HWD.budget, CLIP: HWD.clip_len, GAP: 5 }; HW_SEQ.SEG = HW_SEQ.CLIP + HW_SEQ.GAP;
 const withBrake = s => { if (!s.brake) s.brake = s.v.map((v, i) => i + 1 < s.v.length && s.v[i + 1] < v - 0.05); return s; };
 function hwPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('highway' + st.agents);
@@ -282,7 +290,7 @@ function hwReveal(P) {
 
 // ================= Highway Arm D (lane changes; see scripts/export_highway_armd_demo_data.py) =================
 const HXD = window.HWD_DATA;
-const HX = { HZ: HXD.policy_hz, LANE_W: 4, CAR_L: 5 }; // camera spans the ego's stretch and every other vehicle in the clip
+const HX = { HZ: HXD.policy_hz, PLAY: HXD.policy_hz * 0.8, LANE_W: 4, CAR_L: 5 }; // camera spans the ego's stretch and every other vehicle in the clip
 function hxPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('highwayd' + st.agents);
   const aFirst = st.swap == null ? (h & 1) === 0 : !st.swap, onsetLeft = (hashStr('highwayd') & 2) === 0, aTop = st.swap != null || (h & 4) === 0;
@@ -352,7 +360,8 @@ function hxReveal(P) {
 // 333 development scenes (9 layouts x batteries 24-60). Clips chosen by scripts/export_recharge_demo_data.py.
 const RCD = window.RC_DATA;
 // Playback at 2 steps/s (data exported at 4): half speed, so each 10-step clip lasts 5 s (2026-11-21, advisor: too fast).
-const RC = { FPS: 2, W: RCD.clip_len, N: 10, DOCK: [9, 9] };
+// GAP 2 frames: the blank between clips lasts GAP + 1 frames = 1.5 s at 2 steps/s.
+const RC = { FPS: 2, W: RCD.clip_len, N: 10, DOCK: [9, 9], GAP: 2 };
 const RC_PAIRS = Object.keys(RCD.clips.ONSET);
 function rcPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('recharge' + st.agents);
@@ -364,13 +373,13 @@ function rcPrepare(st) {
   if (RCD.clips.ONSET[st.agents]) for (const m of [M.ON, st.pair]) for (const l of ['A', 'B']) seqs[m + l] = seqOf(m, policyOf[l]);
   return { policyOf, missing: !RCD.clips.ONSET[st.agents],
     left: onsetLeft ? M.ON : st.pair, right: onsetLeft ? st.pair : M.ON, rows: aTop ? ['A', 'B'] : ['B', 'A'],
-    cell: (m, l) => ({ seq: seqs[m + l] }), D: (RCD.budget - 1) * (RC.W + HW_SEQ.GAP) + RC.W,
+    cell: (m, l) => ({ seq: seqs[m + l] }), D: (RCD.budget - 1) * (RC.W + RC.GAP) + RC.W,
     hint: `${RCD.budget} clips × ${RC.W} policy steps at ${RC.FPS} Hz, played back to back` };
 }
 function rcDraw(cv, cell, pf, color, g, P) {
   const c = fitCanvas(cv); if (!c) return; const { ctx, w, h } = c;
   const panel = P.st.panel !== false; // participant page: grid only, no battery/task counters
-  const seg = RC.W + HW_SEQ.GAP, n = cell.seq.length, j = Math.min(Math.floor(pf / seg), n - 1), loc = pf - j * seg;
+  const seg = RC.W + RC.GAP, n = cell.seq.length, j = Math.min(Math.floor(pf / seg), n - 1), loc = pf - j * seg;
   const fs = Math.max(10, h * 0.065);
   if (loc > RC.W - 1 + 1e-6) { // gap between clips
     ctx.fillStyle = g('--surface-2'); ctx.fillRect(0, 0, w, h);
@@ -404,11 +413,12 @@ function rcDraw(cv, cell, pf, color, g, P) {
     if (isDone) { ctx.strokeStyle = g('--muted'); ctx.lineWidth = 1.2; ctx.stroke(); } else { ctx.fillStyle = g('--task'); ctx.fill(); }
     ctx.fillStyle = isDone ? g('--muted') : g('--surface'); ctx.font = `600 ${cs * 0.38}px ${monoFont()}`; ctx.fillText(name, cx, cy + 0.5);
   }
+  const p0 = ep.pos[i0], p1 = ep.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
   const t0 = Math.max(panel ? 0 : clip.start, i0 - 8); // participant page: trail starts at the clip, matching the task marks
   ctx.strokeStyle = color; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(2, cs * 0.12); ctx.beginPath();
   for (let i = t0; i <= i0; i++) { const p = ep.pos[i], X = ox + (p[0] + 0.5) * cs, Y = oy + (p[1] + 0.5) * cs; i === t0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
+  ctx.lineTo(rx, ry); // trail reaches the robot while it moves between cells
   ctx.stroke(); ctx.globalAlpha = 1;
-  const p0 = ep.pos[i0], p1 = ep.pos[i1], rx = ox + (p0[0] + (p1[0] - p0[0]) * fr + 0.5) * cs, ry = oy + (p0[1] + (p1[1] - p0[1]) * fr + 0.5) * cs;
   if (ep.act[i1] === 'WORK' && fr > 0) { ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(rx, ry, cs * (0.35 + 0.3 * fr), 0, Math.PI * 2); ctx.stroke(); }
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(rx, ry, cs * 0.3, 0, Math.PI * 2); ctx.fill();
   if (clip.start + loc > last + 1e-6) endShade(ctx, w, h, g, ep.outcome === 'exhausted' ? 'battery empty' : 'back at the dock'); // run over: say what happened, not 'clip ended'
@@ -443,7 +453,7 @@ function rcReveal(P) {
 // ================= Environment registry =================
 const ENVS = {
   highway: {
-    name: 'Highway', fps: HW.HZ, pairs: [M.HL], canvasClass: st => st.trace ? 'hw-trace' : 'hw',
+    name: 'Highway', fps: HW.PLAY, pairs: [M.HL], canvasClass: st => st.trace ? 'hw-trace' : 'hw',
     notice: `<b>Real episodes.</b> Arm A original single-lane models FD, BAL and SP, training seed ${HWD.source.seed}. Each method picks its own five clips per agent from all 36 scenes, using its own selection rule.`,
     intro: 'Two self-driving cars, each driving on its own, meet a slower vehicle ahead. Each side shows one summary per agent: five short clips from 36 recorded drives, played back to back. Depending on the side, the two agents may appear in the same scenes or in different ones. Every clip lasts the same time; the camera stays fixed and shows the whole stretch of road driven in the clip.',
     q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
@@ -459,7 +469,7 @@ const ENVS = {
     },
   },
   highwayd: {
-    name: 'Highway', fps: HX.HZ, pairs: [M.DIS], canvasClass: () => 'hw',
+    name: 'Highway', fps: HX.PLAY, pairs: [M.DIS], canvasClass: () => 'hw',
     notice: `<b>Real episodes.</b> Arm D models FD, BAL and SP, training seed ${HXD.source.seed}. Each method picks its own ${HXD.onset_budget} clips for the agent pair from all 36 scenes, using its own selection rule, so the two sides need not show the same scenes.`,
     intro: 'Two self-driving cars, each driving on its own, meet a slower vehicle ahead on a two-lane road. Each side shows one summary per agent: four short clips played back to back. Play each side on its own. Every clip lasts the same time; the camera stays fixed.',
     q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',

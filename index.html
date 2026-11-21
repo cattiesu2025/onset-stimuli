@@ -235,14 +235,15 @@ function hwDraw(cv, cell, pf, color, g, P) {
   // Fixed camera (see hwPrepare): both cars move across a static stretch of road.
   const s = w / V.span, cl = Math.max(HW.CAR_L * s, 12), sx = xw => (xw - cam0) * s;
   ctx.fillStyle = g('--shoulder'); ctx.fillRect(0, 0, w, rH);
-  const top = rH * 0.1, rh = rH * 0.8, lh = rh / 3;
-  ctx.fillStyle = g('--road'); ctx.fillRect(0, top, w, rh);
-  ctx.fillStyle = g('--road-mark'); ctx.fillRect(0, top, w, 1.5); ctx.fillRect(0, top + rh - 1.5, w, 1.5);
-  for (let lane = 1; lane < 3; lane++) for (let m = Math.floor(cam0 / 12) * 12; m < cam0 + V.span; m += 12) ctx.fillRect(sx(m), top + lh * lane - 0.75, 6 * s, 1.5);
-  const ch = lh * 0.5, yc = top + lh * 1.5;
+  // Single lane: one strip of road with solid edges (no lane dividers), shoulder above and below.
+  // Lane height matches one lane of the two-lane view (hxDraw: 0.8 h / 2 lanes); car size unchanged.
+  const lh = rH * 0.8 / 2, top = (rH - lh) / 2;
+  ctx.fillStyle = g('--road'); ctx.fillRect(0, top, w, lh);
+  ctx.fillStyle = g('--road-mark'); ctx.fillRect(0, top, w, 1.5); ctx.fillRect(0, top + lh - 1.5, w, 1.5);
+  const ch = rH * 0.8 / 3 * 0.5, yc = top + lh / 2;
   drawCar(ctx, sx(x + gap + HW.CAR_L), yc, cl, ch, g('--lead'), false);
   drawCar(ctx, sx(x), yc, cl, ch, color, traj.brake[step], g('--brake'));
-  const txt = `clip ${j + 1}/${HW_SEQ.N} · t ${((traj.start + f) / HW.HZ).toFixed(1)} s`;
+  const txt = PARTICIPANT ? `clip ${j + 1}/${HW_SEQ.N}` : `clip ${j + 1}/${HW_SEQ.N} · t ${((traj.start + f) / HW.HZ).toFixed(1)} s`;
   if (trace) {
     const py0 = rH + 8, py1 = h - 6, px0 = 44, px1 = w - 8, lo = V.vmin - 1, hi = V.vmax + 1;
     const X = i => px0 + (i / (HW_SEQ.CLIP - 1)) * (px1 - px0), Y = v => py1 - (v - lo) / (hi - lo) * (py1 - py0);
@@ -325,7 +326,7 @@ function hxDraw(cv, cell, pf, color, g, P) {
   const f = Math.min(loc, len - 1), step = Math.floor(f), ch = Math.min(lh * 0.5, cl * 0.55);
   for (const o of traj.others) drawCar(ctx, sx(lerp(o.x, f)), sy(lerp(o.y, f)), cl, ch, g('--lead'), false);
   drawCar(ctx, sx(lerp(traj.x, f)), sy(lerp(traj.y, f)), cl, ch, color, traj.brake[step], g('--brake'));
-  const txt = `clip ${j + 1}/${n} · t ${((traj.start + f) / HX.HZ).toFixed(1)} s`;
+  const txt = PARTICIPANT ? `clip ${j + 1}/${n}` : `clip ${j + 1}/${n} · t ${((traj.start + f) / HX.HZ).toFixed(1)} s`;
   ctx.font = `${fs}px ${monoFont()}`; ctx.textBaseline = 'top';
   ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(6, 4, ctx.measureText(txt).width + 10, fs + 6);
   ctx.fillStyle = '#fff'; ctx.fillText(txt, 11, 7);
@@ -350,7 +351,8 @@ function hxReveal(P) {
 // recharge_transition_timing v0.7.3: validation-selected models PROD, BAL and RES, one training seed,
 // 333 development scenes (9 layouts x batteries 24-60). Clips chosen by scripts/export_recharge_demo_data.py.
 const RCD = window.RC_DATA;
-const RC = { FPS: RCD.fps, W: RCD.clip_len, N: 10, DOCK: [9, 9] };
+// Playback at 2 steps/s (data exported at 4): half speed, so each 10-step clip lasts 5 s (2026-11-21, advisor: too fast).
+const RC = { FPS: 2, W: RCD.clip_len, N: 10, DOCK: [9, 9] };
 const RC_PAIRS = Object.keys(RCD.clips.ONSET);
 function rcPrepare(st) {
   const conds = st.agents.split('-'), h = hashStr('recharge' + st.agents);
@@ -423,7 +425,7 @@ function rcDraw(cv, cell, pf, color, g, P) {
   ctx.fillStyle = g('--muted'); ctx.fillText('TASKS DONE', px, by + bh + fs * 1.1);
   ctx.fillStyle = g('--ink'); ctx.font = `600 ${fs * 1.35}px ${monoFont()}`; ctx.fillText(`${ep.done[cur].length}`, px, by + bh + fs * 2.4);
   ctx.font = `${fs}px ${monoFont()}`;
-  ctx.fillStyle = g('--muted'); ctx.fillText(`clip ${j + 1}/${n} · step ${cur}`, px, by + bh + fs * 4.7);
+  ctx.fillStyle = g('--muted'); ctx.fillText(PARTICIPANT ? `clip ${j + 1}/${n}` : `clip ${j + 1}/${n} · step ${cur}`, px, by + bh + fs * 4.7);
   if (cur === last) { ctx.fillStyle = ep.outcome === 'returned' ? g('--dock') : g('--brake'); ctx.fillText(ep.outcome.replace(/_/g, ' '), px, by + bh + fs * 6); }
 }
 function rcReveal(P) {
@@ -471,7 +473,7 @@ const ENVS = {
   recharge: {
     name: 'Recharge', fps: RC.FPS, pairs: [M.HL], canvasClass: st => st.panel === false ? 'rc-grid' : 'rc',
     notice: `<b>Real episodes.</b> Recharge models PROD, BAL and RES (v0.7.3), training seed ${RCD.source.seed}. Each method picks its own ${RCD.budget} clips per agent from 333 development scenes, using its own selection rule.`,
-    intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Each side shows five short clips per robot, played back to back.',
+    intro: 'Two robots start at the top-left corner with the same battery. Tasks are optional; each robot decides how many to complete before heading to the charging dock at the bottom-right. Passing over a task does not complete it: the robot has to stop and work on it (shown by a ring), which uses extra battery. Each side shows five short clips per robot, played back to back.',
     q1: 'Q1. Which side makes it easier to see how Agent A and Agent B behave differently?',
     legend: `<span><i class="chip" style="background:var(--task)"></i>Task not done</span><span><i class="chip" style="background:var(--zone)"></i>Charging area</span><span><i class="chip" style="background:var(--dock)"></i>Charging dock</span>`,
     prepare: rcPrepare, draw: rcDraw, reveal: rcReveal,
@@ -586,13 +588,15 @@ function renderStimulus(Q) {
   $stage.innerHTML = `
     <div class="legend"><span><i class="chip round" style="background:var(--agent-a)"></i>Agent A</span><span><i class="chip round" style="background:var(--agent-b)"></i>Agent B</span>${E.legend.replace(' (dashed line: its speed)', '').replace('Task not done</span>', 'Task</span><span><i class="chip" style="background:transparent;border:1.2px solid var(--muted)"></i>Task done in this video</span>')}</div>
     <div class="sides one">${clipCol('Videos', method, P)}</div>
-    <div class="hint">${(P.hint || `${P.D} policy steps at ${E.fps} Hz`).replace(/;.*$/, '')}. You can replay as often as you like.</div>`;
+    <div class="hint">The short clips play one after another. You can replay as often as you like.</div>`;
   players = [...$stage.querySelectorAll('.side')].map(el => makePlayer(P, el));
   new ResizeObserver(() => post('resize')).observe(document.body);
   post('ready');
 }
 
 const STIM_Q = new URLSearchParams(location.search);
+// Participant view: plain clip labels, no time stamps, step counts or frame rates (advisor, 2026-11-21).
+var PARTICIPANT = STIM_Q.has('exp');
 const STIM_ONLY = true; // set to true by scripts/build_stimulus_site.py for the public participant site
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => players.forEach(p => p.draw()));
 if (STIM_Q.has('exp')) renderStimulus(STIM_Q);
